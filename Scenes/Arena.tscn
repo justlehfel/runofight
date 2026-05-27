@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://pw67qfulg0wi"]
+
+[ext_resource type="PackedScene" uid="uid://c1ddh73dgone" path="res://Scenes/Bloc.tscn" id="2_pyk7t"]
+[ext_resource type="PackedScene" uid="uid://bfy1ml0ynwt84" path="res://Scenes/Player.tscn" id="3_pyk7t"]
+[ext_resource type="Shader" uid="uid://dgqebnqbofimk" path="res://Assets/ArenaBG.gdshader" id="3_x00a1"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4f205"]
+shader = ExtResource("3_x00a1")
+shader_parameter/bg_color = Color(0.05, 0.05, 0.08, 1)
+shader_parameter/grid_color = Color(0.2, 0.8, 0.4, 0.3)
+
+[node name="Arena" type="Node2D" unique_id=945806579]
+
+[node name="Bloc" parent="." unique_id=1246921568 instance=ExtResource("2_pyk7t")]
+position = Vector2(311, 952)
+
+[node name="Bloc2" parent="." unique_id=1149894633 instance=ExtResource("2_pyk7t")]
+position = Vector2(940.00006, 1140)
+scale = Vector2(15.54581, 1.2343912)
+
+[node name="Bloc3" parent="." unique_id=388656663 instance=ExtResource("2_pyk7t")]
+position = Vector2(1637, 923)
+
+[node name="Player" parent="." unique_id=675685241 instance=ExtResource("3_pyk7t")]
+position = Vector2(636, 992)
+
+[node name="Player2" parent="." unique_id=285547454 instance=ExtResource("3_pyk7t")]
+modulate = Color(18.892157, 0, 0, 1)
+position = Vector2(1316, 990)
+is_dummy = true
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="." unique_id=192759543]
+layer = -1
+
+[node name="ColorRect" type="ColorRect" parent="BackgroundLayer" unique_id=117340290]
+material = SubResource("ShaderMaterial_4f205")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2

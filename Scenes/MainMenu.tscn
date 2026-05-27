@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://61os2aiq2ubw"]
+
+[ext_resource type="Script" uid="uid://dwoh1x41emwyi" path="res://Scripts/MainMenu.gd" id="1_853f1"]
+[ext_resource type="Shader" uid="uid://bpk6tux810wa0" path="res://Assets/MainMenuBG.gdshader" id="1_tt5f1"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_853f1"]
+shader = ExtResource("1_tt5f1")
+shader_parameter/bg_color = Color(0.013244096, 0.013244096, 0.13673404, 1)
+shader_parameter/pattern_color = Color(0.2, 0.6, 0.9019608, 0.5019608)
+
+[node name="Interface" type="Control" unique_id=1921397121]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+script = ExtResource("1_853f1")
+
+[node name="Background" type="ColorRect" parent="." unique_id=822439570]
+material = SubResource("ShaderMaterial_853f1")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1283407335]
+layout_mode = 0
+offset_left = 481.0
+offset_top = 342.0
+offset_right = 1428.0
+offset_bottom = 774.0
+
+[node name="Label" type="Label" parent="VBoxContainer" unique_id=1341254487]
+layout_mode = 2
+theme_override_font_sizes/font_size = 150
+text = "Rune-O-Fight"
+
+[node name="BtnPlay" type="Button" parent="VBoxContainer" unique_id=1254787382]
+layout_mode = 2
+theme_override_font_sizes/font_size = 50
+text = "Play"
+
+[node name="BtnQuit" type="Button" parent="VBoxContainer" unique_id=450033707]
+layout_mode = 2
+theme_override_font_sizes/font_size = 50
+text = "Quit"
