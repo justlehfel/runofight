@@ -40,10 +40,18 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 150
 text = "Rune-O-Fight"
 
-[node name="BtnPlay" type="Button" parent="VBoxContainer" unique_id=1254787382]
+[node name="IpInput" type="LineEdit" parent="VBoxContainer" unique_id=1683042989]
+layout_mode = 2
+placeholder_text = "Entrer IP (vide = local)"
+
+[node name="BtnHost" type="Button" parent="VBoxContainer" unique_id=1254787382]
 layout_mode = 2
 theme_override_font_sizes/font_size = 50
-text = "Play"
+text = "Host"
+
+[node name="BtnJoin" type="Button" parent="VBoxContainer" unique_id=1572314379]
+layout_mode = 2
+text = "Join"
 
 [node name="BtnQuit" type="Button" parent="VBoxContainer" unique_id=450033707]
 layout_mode = 2

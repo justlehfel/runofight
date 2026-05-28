@@ -21,7 +21,6 @@ var reload_delay: float = 1.0
 var reload_delay_timer: Timer
 
 @export var is_dummy: bool = false
-
 @onready var sprite = $Sprite2D
 @onready var weapon_pivot = $WeaponPivot
 @onready var gun = $WeaponPivot
@@ -33,6 +32,9 @@ var reload_delay_timer: Timer
 @onready var reload_circle = $ReloadCircle
 
 var bullet_scene = preload("res://Scenes/Bullet.tscn")
+
+func _enter_tree():
+	set_multiplayer_authority(name.to_int())
 
 func _ready():
 	original_color = sprite.modulate
@@ -65,7 +67,10 @@ func _physics_process(delta):
 		reload_circle.value = progress
 	else:
 		reload_circle.hide()
-	
+
+	if not is_multiplayer_authority():
+		return
+
 	if is_dummy:
 		if not is_on_floor():
 			velocity.y += gravity * delta
@@ -93,17 +98,23 @@ func _physics_process(delta):
 			shoot()
 
 func shoot():
-	ammo -= 1
 	can_shoot = false 
+	
+	rpc_shoot_action.rpc(muzzle.global_position, weapon_pivot.rotation)
+	
+	get_tree().create_timer(fire_rate).timeout.connect(func(): can_shoot = true)
+
+@rpc("any_peer", "call_local", "reliable")
+func rpc_shoot_action(pos, rot):
+	ammo -= 1
 	animate_recoil()
 	update_ammo_ui()
 	
 	var bullet = bullet_scene.instantiate()
 	bullet.shooter = self 
-	get_parent().add_child(bullet)
-	
-	bullet.global_position = muzzle.global_position
-	bullet.rotation = weapon_pivot.rotation
+	get_tree().current_scene.add_child(bullet) 
+	bullet.global_position = pos
+	bullet.rotation = rot
 	
 	reload_timer.stop()
 	reload_delay_timer.stop()
@@ -112,8 +123,6 @@ func shoot():
 		reload_timer.start()
 	else:
 		reload_delay_timer.start()
-	
-	get_tree().create_timer(fire_rate).timeout.connect(func(): can_shoot = true)
 
 func _on_reload_delay_finished():
 	reload_timer.start()
@@ -140,7 +149,8 @@ func animate_recoil():
 	gun.position.x = original_gun_pos.x - 15 
 	tween.tween_property(gun, "position:x", original_gun_pos.x, 0.2).set_trans(Tween.TRANS_SPRING)
 
-func take_damage(amount):
+@rpc("any_peer", "call_local", "reliable")
+func rpc_take_damage(amount):
 	if is_dead: return 
 	
 	hp -= amount
@@ -166,7 +176,9 @@ func respawn():
 	ammo = MAX_AMMO
 	is_dead = false
 	collision_shape.set_deferred("disabled", false) 
+	
 	update_ammo_ui()
-	show()
 	hp_bar.show()
 	ammo_ui.show()
+	
+	show()
