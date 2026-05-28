@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://d1s7fenefiswn" path="res://Scripts/Player.gd" id="1_kyqiw"]
 [ext_resource type="Texture2D" uid="uid://ikiwqtyfiuc5" path="res://icon.svg" id="1_rpqav"]
+[ext_resource type="Texture2D" uid="uid://bdxbkjayqxfx2" path="res://Assets/character_temp.png" id="2_gntrk"]
 
 [sub_resource type="Gradient" id="Gradient_kyqiw"]
 offsets = PackedFloat32Array(0, 0.25510204, 0.59090906)
@@ -14,7 +15,7 @@ fill_from = Vector2(0.5, 0.5)
 fill_to = Vector2(0, 0)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kyqiw"]
-size = Vector2(129, 128)
+size = Vector2(129, 125.1503)
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_kyqiw"]
 properties/0/path = NodePath(".:position")
@@ -68,10 +69,13 @@ color = Color(18.892157, 18.892157, 0, 1)
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=619544862]
 modulate = Color(0, 14.666419, 0, 1)
-texture = ExtResource("1_rpqav")
+position = Vector2(-1.1900544, -9.91626)
+scale = Vector2(0.21269555, 0.23757716)
+texture = ExtResource("2_gntrk")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1576900286]
-position = Vector2(0.5, 0)
+position = Vector2(0.5, 1.4248483)
+scale = Vector2(1, 0.9999999)
 shape = SubResource("RectangleShape2D_kyqiw")
 
 [node name="WeaponPivot" type="Node2D" parent="." unique_id=1201785998]
@@ -95,5 +99,5 @@ value = 100.0
 show_percentage = false
 metadata/_edit_use_anchors_ = true
 
-[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=891523675]
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1949344061]
 replication_config = SubResource("SceneReplicationConfig_kyqiw")

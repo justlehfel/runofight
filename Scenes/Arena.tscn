@@ -14,15 +14,59 @@ script = ExtResource("1_pyk7t")
 
 [node name="Players" type="Node2D" parent="." unique_id=991413368]
 
-[node name="Bloc" parent="." unique_id=1246921568 instance=ExtResource("2_pyk7t")]
-position = Vector2(311, 952)
+[node name="WallLeft" parent="." unique_id=1246921568 instance=ExtResource("2_pyk7t")]
+position = Vector2(-8, 582)
+rotation = 3.1415927
+scale = Vector2(0.40372765, -10.671644)
 
-[node name="Bloc2" parent="." unique_id=1149894633 instance=ExtResource("2_pyk7t")]
+[node name="WallRight" parent="." unique_id=1647141140 instance=ExtResource("2_pyk7t")]
+position = Vector2(1932, 601.00006)
+rotation = 3.1415927
+scale = Vector2(0.40372765, -10.671644)
+
+[node name="Bloc" parent="." unique_id=1060114466 instance=ExtResource("2_pyk7t")]
+position = Vector2(274, 997)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc3" parent="." unique_id=1502916122 instance=ExtResource("2_pyk7t")]
+position = Vector2(489, 866)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc11" parent="." unique_id=1364344716 instance=ExtResource("2_pyk7t")]
+position = Vector2(382, 930)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc12" parent="." unique_id=350049925 instance=ExtResource("2_pyk7t")]
+position = Vector2(1473, 934)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc6" parent="." unique_id=702138886 instance=ExtResource("2_pyk7t")]
+position = Vector2(635, 800)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc7" parent="." unique_id=133782552 instance=ExtResource("2_pyk7t")]
+position = Vector2(1257, 796)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc8" parent="." unique_id=1725326833 instance=ExtResource("2_pyk7t")]
+position = Vector2(1363.9999, 852)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc9" parent="." unique_id=1587492739 instance=ExtResource("2_pyk7t")]
+position = Vector2(1579.9999, 1005.00006)
+scale = Vector2(0.6800006, 0.56000125)
+
+[node name="Bloc10" parent="." unique_id=2015240718 instance=ExtResource("2_pyk7t")]
+position = Vector2(792, 834.00006)
+scale = Vector2(1.020664, 0.6626986)
+
+[node name="Bloc13" parent="." unique_id=854125382 instance=ExtResource("2_pyk7t")]
+position = Vector2(1103, 837.00006)
+scale = Vector2(1.020664, 0.6626986)
+
+[node name="Ground" parent="." unique_id=1149894633 instance=ExtResource("2_pyk7t")]
 position = Vector2(940.00006, 1140)
 scale = Vector2(15.54581, 1.2343912)
-
-[node name="Bloc3" parent="." unique_id=388656663 instance=ExtResource("2_pyk7t")]
-position = Vector2(1637, 923)
 
 [node name="BackgroundLayer" type="CanvasLayer" parent="." unique_id=192759543]
 layer = -1
