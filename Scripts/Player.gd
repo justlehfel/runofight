@@ -8,10 +8,17 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity") * 1.5
 var ammo = MAX_AMMO
 var hp = 100
 var original_color: Color 
+
 var can_shoot: bool = true
 var fire_rate: float = 0.25 
 var spawn_position: Vector2
 var is_dead: bool = false
+
+var reload_time: float = 2.0
+var reload_timer: Timer
+
+var reload_delay: float = 1.0
+var reload_delay_timer: Timer
 
 @export var is_dummy: bool = false
 
@@ -22,18 +29,42 @@ var is_dead: bool = false
 @onready var hp_bar = $Life
 @onready var collision_shape = $CollisionShape2D
 @onready var original_gun_pos = gun.position 
+@onready var ammo_ui = $AmmoUI
+@onready var reload_circle = $ReloadCircle
 
 var bullet_scene = preload("res://Scenes/Bullet.tscn")
 
 func _ready():
 	original_color = sprite.modulate
 	spawn_position = global_position 
+	
+	reload_timer = Timer.new()
+	reload_timer.wait_time = reload_time
+	reload_timer.one_shot = true
+	reload_timer.timeout.connect(_on_reload_finished)
+	add_child(reload_timer)
+	
+	reload_delay_timer = Timer.new()
+	reload_delay_timer.wait_time = reload_delay
+	reload_delay_timer.one_shot = true
+	reload_delay_timer.timeout.connect(_on_reload_delay_finished)
+	add_child(reload_delay_timer)
+	
+	update_ammo_ui()
+	reload_circle.hide()
 
 func _physics_process(delta):
 	if is_dead:
 		return 
 
 	hp_bar.value = hp
+	
+	if not reload_timer.is_stopped():
+		reload_circle.show()
+		var progress = (1.0 - (reload_timer.time_left / reload_timer.wait_time)) * 100
+		reload_circle.value = progress
+	else:
+		reload_circle.hide()
 	
 	if is_dummy:
 		if not is_on_floor():
@@ -55,7 +86,6 @@ func _physics_process(delta):
 		velocity.x = move_toward(velocity.x, 0, SPEED)
 
 	move_and_slide()
-
 	weapon_pivot.look_at(get_global_mouse_position())
 
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_action_just_pressed("ui_accept"):
@@ -66,6 +96,7 @@ func shoot():
 	ammo -= 1
 	can_shoot = false 
 	animate_recoil()
+	update_ammo_ui()
 	
 	var bullet = bullet_scene.instantiate()
 	bullet.shooter = self 
@@ -74,9 +105,30 @@ func shoot():
 	bullet.global_position = muzzle.global_position
 	bullet.rotation = weapon_pivot.rotation
 	
-	get_tree().create_timer(1.0).timeout.connect(func(): ammo = min(ammo + 1, MAX_AMMO))
+	reload_timer.stop()
+	reload_delay_timer.stop()
+	
+	if ammo <= 0:
+		reload_timer.start()
+	else:
+		reload_delay_timer.start()
 	
 	get_tree().create_timer(fire_rate).timeout.connect(func(): can_shoot = true)
+
+func _on_reload_delay_finished():
+	reload_timer.start()
+
+func _on_reload_finished():
+	ammo = MAX_AMMO
+	update_ammo_ui()
+
+func update_ammo_ui():
+	for i in range(ammo_ui.get_child_count()):
+		var bullet_rect = ammo_ui.get_child(i)
+		if i < ammo:
+			bullet_rect.modulate.a = 1.0 
+		else:
+			bullet_rect.modulate.a = 0.2 
 
 func animate_jump():
 	var tween = create_tween()
@@ -103,6 +155,7 @@ func die():
 	is_dead = true
 	hide() 
 	hp_bar.hide()
+	ammo_ui.hide()
 	collision_shape.set_deferred("disabled", true) 
 	
 	get_tree().create_timer(3.0).timeout.connect(respawn)
@@ -113,5 +166,7 @@ func respawn():
 	ammo = MAX_AMMO
 	is_dead = false
 	collision_shape.set_deferred("disabled", false) 
+	update_ammo_ui()
 	show()
 	hp_bar.show()
+	ammo_ui.show()
