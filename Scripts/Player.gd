@@ -8,6 +8,7 @@ var gravity = ProjectSettings.get_setting("physics/2d/default_gravity") * 1.5
 var ammo = MAX_AMMO
 var hp = 100
 var original_color: Color 
+var original_scale: Vector2
 
 var can_shoot: bool = true
 var fire_rate: float = 0.25 
@@ -38,6 +39,7 @@ func _enter_tree():
 
 func _ready():
 	original_color = sprite.modulate
+	original_scale = sprite.scale
 	spawn_position = global_position 
 	
 	reload_timer = Timer.new()
@@ -141,8 +143,8 @@ func update_ammo_ui():
 
 func animate_jump():
 	var tween = create_tween()
-	sprite.scale = Vector2(0.5, 1.5)
-	tween.tween_property(sprite, "scale", Vector2(1, 1), 0.3).set_trans(Tween.TRANS_ELASTIC)
+	sprite.scale = Vector2(original_scale.x * 0.5, original_scale.y * 1.5)
+	tween.tween_property(sprite, "scale", original_scale, 0.3).set_trans(Tween.TRANS_ELASTIC)
 
 func animate_recoil():
 	var tween = create_tween()
