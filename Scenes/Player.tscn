@@ -31,7 +31,7 @@ properties/3/path = NodePath("WeaponPivot:position")
 properties/3/spawn = true
 properties/3/replication_mode = 1
 
-[node name="Player" type="CharacterBody2D" unique_id=675685241]
+[node name="Player" type="CharacterBody2D" unique_id=675685241 groups=["players"]]
 scale = Vector2(0.6280607, 0.6050666)
 script = ExtResource("1_kyqiw")
 
@@ -44,13 +44,12 @@ scale = Vector2(0.5380775, 0.5627482)
 fill_mode = 4
 texture_progress = SubResource("GradientTexture2D_gntrk")
 
-[node name="AmmoUI" type="HBoxContainer" parent="." unique_id=1143443030]
+[node name="AmmoUI" type="HFlowContainer" parent="." unique_id=1897369978]
 custom_minimum_size = Vector2(10, 10)
 offset_left = 79.610146
 offset_top = -107.426186
 offset_right = 119.610146
 offset_bottom = -67.426186
-theme_override_constants/separation = 4
 
 [node name="ColorRect" type="ColorRect" parent="AmmoUI" unique_id=636857566]
 custom_minimum_size = Vector2(10, 10)

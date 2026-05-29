@@ -17,16 +17,18 @@ func _on_host_pressed():
 	var error = peer.create_server(PORT, 4)
 	if error == OK:
 		multiplayer.multiplayer_peer = peer
-		start_game()
+		GameManager.players[1] = { "weapon": 0, "ready": false }
+		start_selection()
 
 func _on_join_pressed():
 	var peer = ENetMultiplayerPeer.new()
 	var ip = ip_input.text
-	if ip == "": 
-		ip = "127.0.0.1"
+	if ip == "": ip = "127.0.0.1"
+	
 	peer.create_client(ip, PORT)
 	multiplayer.multiplayer_peer = peer
-	start_game()
+	GameManager.players[multiplayer.get_unique_id()] = { "weapon": 0, "ready": false }
+	start_selection()
 
-func start_game():
-	get_tree().change_scene_to_file("res://Scenes/Arena.tscn")
+func start_selection():
+	get_tree().change_scene_to_file("res://Scenes/RuneTree.tscn")

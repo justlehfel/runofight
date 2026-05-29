@@ -1,0 +1,85 @@
+[gd_scene format=3 uid="uid://beejxrjcvqryx"]
+
+[ext_resource type="Script" uid="uid://bp3oabw70m5eq" path="res://Scripts/RuneTree.gd" id="1_m6xhn"]
+[ext_resource type="Texture2D" uid="uid://ewqmch6capgt" path="res://Assets/Rune_Sheet_LowRes.png" id="1_uubq0"]
+[ext_resource type="Texture2D" uid="uid://ikiwqtyfiuc5" path="res://icon.svg" id="3_e0rii"]
+
+[sub_resource type="CanvasTexture" id="CanvasTexture_4762x"]
+diffuse_texture = ExtResource("3_e0rii")
+
+[sub_resource type="CanvasTexture" id="CanvasTexture_q18mu"]
+diffuse_texture = ExtResource("3_e0rii")
+
+[node name="RuneTree" type="Control" unique_id=1321297731]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_m6xhn")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=327385943]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_uubq0")
+expand_mode = 1
+
+[node name="MasterRunes" type="Control" parent="." unique_id=1070834836]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="BtnGun" type="TextureButton" parent="MasterRunes" unique_id=690254612]
+modulate = Color(9.418578, 9.418578, 0, 1)
+layout_mode = 0
+offset_left = 895.0
+offset_top = 267.0
+offset_right = 1023.0
+offset_bottom = 395.0
+texture_normal = ExtResource("3_e0rii")
+
+[node name="BtnBody" type="TextureButton" parent="MasterRunes" unique_id=1018871398]
+modulate = Color(0, 18.892157, 18.892157, 1)
+layout_mode = 0
+offset_left = 645.0
+offset_top = 696.0
+offset_right = 773.0
+offset_bottom = 824.0
+texture_normal = SubResource("CanvasTexture_4762x")
+
+[node name="BtnAbility" type="TextureButton" parent="MasterRunes" unique_id=1786750528]
+modulate = Color(18.892157, 0, 18.892157, 1)
+layout_mode = 0
+offset_left = 1144.0
+offset_top = 697.0
+offset_right = 1272.0
+offset_bottom = 825.0
+texture_normal = SubResource("CanvasTexture_q18mu")
+
+[node name="WeaponList" type="OptionButton" parent="." unique_id=666545110]
+layout_mode = 0
+offset_left = 913.0
+offset_top = 298.0
+offset_right = 1007.0
+offset_bottom = 357.0
+
+[node name="BtnConfirm" type="Button" parent="." unique_id=575567813]
+layout_mode = 0
+offset_left = 518.0
+offset_top = 420.0
+offset_right = 669.0
+offset_bottom = 505.0
+text = "Confirm"
+
+[node name="WaitLabel" type="Label" parent="." unique_id=471671687]
+layout_mode = 0
+offset_left = 1218.0
+offset_top = 440.0
+offset_right = 1389.0
+offset_bottom = 463.0
+text = "Waiting other player..."
