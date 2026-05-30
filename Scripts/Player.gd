@@ -137,6 +137,7 @@ func equip_weapon():
 	update_ammo_ui()
 
 func _physics_process(delta):
+	var wall_sliding = false
 	if is_dead: return 
 
 	handle_status_effects(delta)
@@ -162,17 +163,43 @@ func _physics_process(delta):
 		else:
 			active_grapple.rpc("destroy_bullet")
 			active_grapple = null
-
+	#.....................
+	#check si contre le mur
+	if is_on_wall() and not is_on_floor():
+		if Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right"):
+			wall_sliding = true
+		else:
+			wall_sliding = false
+	
 	if not is_on_floor():
 		var current_grav = gravity
+		if wall_sliding and velocity.y > 0:
+			current_grav= gravity/4
+			velocity.y = minf(velocity.y, 350)
 		if Input.is_action_pressed("ui_down"):
 			current_grav *= 5.0 
+			if wall_sliding and velocity.y > 0:
+				velocity.y = maxf(velocity.y, 350)
 		velocity.y += current_grav * delta
+	#........................................
+	
 
+	
+	
 	if status_pin_timer <= 0:
 		if Input.is_action_just_pressed("ui_up") and is_on_floor():
 			velocity.y = JUMP_VELOCITY
 			animate_jump()
+		if Input.is_action_just_pressed("ui_up") and wall_sliding:
+			var wall_jump_kb = 1100
+			if Input.is_action_pressed("ui_left"):
+				velocity.y = JUMP_VELOCITY
+				velocity.x = wall_jump_kb
+				animate_jump()
+			else:
+				velocity.y = JUMP_VELOCITY
+				velocity.x = -wall_jump_kb
+				animate_jump()
 
 		var direction = Input.get_axis("ui_left", "ui_right")
 		var speed_modifier = current_speed
@@ -180,7 +207,9 @@ func _physics_process(delta):
 		if current_weapon == GunType.MINIGUN and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 			speed_modifier *= 0.4 
 			
-		if direction: velocity.x = direction * speed_modifier
+		if direction: velocity.x = move_toward(velocity.x, direction * BASE_SPEED , 200)
+		elif not is_on_floor() : 
+			velocity.x = move_toward(velocity.x, 0, 30)
 		else: velocity.x = move_toward(velocity.x, 0, speed_modifier)
 	else:
 		velocity.x = move_toward(velocity.x, 0, current_speed * 0.1) 
