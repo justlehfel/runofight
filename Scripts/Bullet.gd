@@ -33,7 +33,7 @@ func _ready():
 	base_damage = damage
 	
 	if b_trait == Trait.BEAM or b_trait == Trait.CHAIN_BEAM:
-		scale.x = beam_length / 128.0
+		scale.x = beam_length / 128.0 
 		position += Vector2(beam_length / 2.0, 0).rotated(rotation)
 		get_tree().create_timer(life_time).timeout.connect(explode_or_die)
 		
@@ -65,6 +65,8 @@ func _physics_process(delta):
 	var step = velocity * delta
 	traveled_distance += step.length()
 	damage = max(1.0, base_damage * (1.0 - (traveled_distance / 4000.0)))
+	
+	raycast.target_position = Vector2(step.length() + 5.0, 0)
 	
 	if bounces > 0 and raycast.is_colliding():
 		var normal = raycast.get_collision_normal()
@@ -122,13 +124,16 @@ func _on_body_entered(body):
 				if next and next != body:
 					next.rpc_take_damage.rpc(damage * 0.5)
 
+		if b_trait != Trait.PIERCE and b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BEAM:
+			explode_or_die()
+			
+	else:
+		if bounces <= 0 and b_trait != Trait.PIERCE and b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BEAM and b_trait != Trait.GRAPPLE:
+			explode_or_die()
+			
 	if b_trait == Trait.GRAPPLE:
 		is_stuck = true
 		velocity = Vector2.ZERO
-		return 
-
-	if b_trait != Trait.PIERCE and b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BEAM:
-		explode_or_die()
 
 @rpc("any_peer", "call_local", "reliable")
 func destroy_bullet():
