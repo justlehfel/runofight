@@ -68,6 +68,20 @@ offset_top = 298.0
 offset_right = 1007.0
 offset_bottom = 357.0
 
+[node name="BodyList" type="OptionButton" parent="." unique_id=1124040052]
+layout_mode = 0
+offset_left = 657.0
+offset_top = 725.0
+offset_right = 750.0
+offset_bottom = 799.0
+
+[node name="AbilityList" type="OptionButton" parent="." unique_id=1284897599]
+layout_mode = 0
+offset_left = 1153.0
+offset_top = 731.0
+offset_right = 1263.0
+offset_bottom = 796.0
+
 [node name="BtnConfirm" type="Button" parent="." unique_id=575567813]
 layout_mode = 0
 offset_left = 518.0

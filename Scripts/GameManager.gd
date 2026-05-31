@@ -17,7 +17,7 @@ func _input(event):
 
 func _on_peer_connected(id):
 	if multiplayer.is_server():
-		players[id] = { "weapon": 0, "ready": false }
+		players[id] = { "weapon": 0, "body": 0, "ability": 0, "ready": false } 
 		sync_to_clients()
 
 func _on_peer_disconnected(id):
@@ -38,17 +38,15 @@ func rpc_update_players(server_players):
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_quit_to_menu():
-	players.clear()
-	get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")
-	
-	await get_tree().create_timer(0.2).timeout
-	if multiplayer.multiplayer_peer != null:
-		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
+	reset_and_go_to_menu()
 
 func reset_and_go_to_menu():
 	players.clear()
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = null
+	
+	call_deferred("_change_scene_to_menu")
+
+func _change_scene_to_menu():
 	get_tree().change_scene_to_file("res://Scenes/MainMenu.tscn")

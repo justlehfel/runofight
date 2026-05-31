@@ -1,7 +1,7 @@
 extends Area2D
 
-enum Trait { NORMAL, BOOMERANG, HOMING, PIERCE, BEAM, CHAIN_BEAM, GRAPPLE, REMOTE, HARPOON }
-enum Effect { NONE, EXPLOSION, SLOW, PIN, PULL_ENEMY, PULL_SELF }
+enum Trait { NORMAL, BOOMERANG, HOMING, PIERCE, BEAM, CHAIN_BULLET, GRAPPLE, REMOTE, HARPOON, FLAME, SWAP, STASIS, FISHING }
+enum Effect { NONE, EXPLOSION, SLOW, NAIL_STUN, PULL_ENEMY, PULL_SELF }
 
 var speed = 1000.0
 var damage = 25.0
@@ -26,15 +26,21 @@ var is_stuck = false
 var is_returning = false
 
 @onready var raycast = $RayCast
+@onready var sprite = $Sprite2D
 
 func _ready():
 	add_to_group("bullets")
 	velocity = Vector2(speed, 0).rotated(rotation)
 	base_damage = damage
 	
-	if b_trait == Trait.BEAM or b_trait == Trait.CHAIN_BEAM:
+	if is_instance_valid(shooter):
+		raycast.add_exception(shooter) 
+
+	if b_trait == Trait.BEAM:
+		sprite.offset = Vector2(64, 0) 
 		scale.x = beam_length / 128.0 
-		position += Vector2(beam_length / 2.0, 0).rotated(rotation)
+		
+	if life_time > 0:
 		get_tree().create_timer(life_time).timeout.connect(explode_or_die)
 		
 	body_entered.connect(_on_body_entered)
@@ -45,29 +51,32 @@ func _physics_process(delta):
 	
 	time_alive += delta
 	
-	if b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BEAM:
+	if b_trait != Trait.BEAM and b_trait != Trait.FLAME:
 		velocity.y += (bullet_gravity * grav_scale) * delta
 
 	match b_trait:
 		Trait.BOOMERANG:
-			if time_alive > life_time:
-				is_returning = true
+			if time_alive > life_time and not is_returning: is_returning = true
 			if is_returning and is_instance_valid(shooter):
 				velocity = (shooter.global_position - global_position).normalized() * speed
 		Trait.HOMING:
-			var closest = get_closest_player()
-			if closest:
-				velocity = velocity.lerp((closest.global_position - global_position).normalized() * speed, 5.0 * delta)
+			var closest = get_closest_player(null)
+			if closest: velocity = velocity.lerp((closest.global_position - global_position).normalized() * speed, 5.0 * delta)
 		Trait.REMOTE:
 			if is_instance_valid(shooter):
-				velocity = velocity.lerp((shooter.sync_mouse_pos - global_position).normalized() * speed, 8.0 * delta)
+				velocity = velocity.lerp((shooter.sync_mouse_pos - global_position).normalized() * speed, 12.0 * delta)
 	
 	var step = velocity * delta
 	traveled_distance += step.length()
-	damage = max(1.0, base_damage * (1.0 - (traveled_distance / 4000.0)))
+	
+	var falloff_dist = 4000.0
+	if mass == 2.0 and bounces == 0: falloff_dist = 1500.0 
+	if mass == 3.0 and speed == 1100: falloff_dist = 800.0 
+	if b_trait == Trait.FLAME: falloff_dist = 999999.0 
+	
+	damage = max(1.0, base_damage * (1.0 - (traveled_distance / falloff_dist)))
 	
 	raycast.target_position = Vector2(step.length() + 5.0, 0)
-	
 	if bounces > 0 and raycast.is_colliding():
 		var normal = raycast.get_collision_normal()
 		var collider = raycast.get_collider()
@@ -77,16 +86,16 @@ func _physics_process(delta):
 			bounces -= 1
 			position += normal * 2 
 			if bounces <= 0 and b_effect == Effect.EXPLOSION:
-				explode_or_die()
+				explode_or_die() 
 	
 	position += velocity * delta
 	rotation = velocity.angle()
 
-func get_closest_player():
-	var closest_dist = 1000.0
+func get_closest_player(ignore_player):
+	var closest_dist = 800.0 
 	var closest_player = null
 	for p in get_tree().get_nodes_in_group("players"):
-		if p != shooter and not p.is_dead:
+		if p != ignore_player and not p.is_dead:
 			var d = global_position.distance_to(p.global_position)
 			if d < closest_dist:
 				closest_dist = d
@@ -103,52 +112,85 @@ func _on_area_entered(area):
 
 func _on_body_entered(body):
 	if body == shooter: 
-		if is_returning and multiplayer.is_server():
-			shooter.rpc("force_reload")
+		if b_trait == Trait.BOOMERANG and is_returning and multiplayer.is_server():
+			shooter.rpc("force_reload", true) 
 			queue_free()
 		return 
 	
 	if body.has_method("rpc_take_damage"):
 		if multiplayer.is_server():
-			body.rpc_take_damage.rpc(damage)
+			var shooter_id = shooter.name.to_int() if shooter else -1
+			
+			if body.get("is_reflecting"):
+				velocity = -velocity
+				shooter = body 
+				return
+			
+			if b_trait != Trait.CHAIN_BULLET:
+				body.rpc_take_damage.rpc(damage, shooter_id)
 			
 			if b_effect == Effect.SLOW: body.rpc_apply_status.rpc("slow")
-			elif b_effect == Effect.PIN: body.rpc_apply_status.rpc("pin")
-			elif b_effect == Effect.PULL_ENEMY: body.rpc_pull.rpc(shooter.global_position, 800)
+			elif b_effect == Effect.NAIL_STUN: body.rpc_apply_status.rpc("nail", velocity.normalized())
+			elif b_effect == Effect.PULL_ENEMY: body.rpc_pull.rpc(shooter.global_position, 300) 
 			
-			if b_trait == Trait.HARPOON:
-				body.rpc_pull.rpc(shooter.global_position, 2000) 
+			if b_trait == Trait.HARPOON: body.rpc_pull.rpc(shooter.global_position, 2500) 
+			if b_trait == Trait.FISHING: body.rpc_pull.rpc(shooter.global_position, 3500) 
+			if b_trait == Trait.STASIS: body.rpc_apply_status.rpc("stasis", Vector2.ZERO, shooter_id)
 			
-			if b_trait == Trait.CHAIN_BEAM:
-				var next = get_closest_player()
-				if next and next != body:
-					next.rpc_take_damage.rpc(damage * 0.5)
+			if b_trait == Trait.SWAP and shooter:
+				var temp = shooter.global_position
+				shooter.global_position = body.global_position
+				body.global_position = temp
+			
+			if b_trait == Trait.CHAIN_BULLET:
+				body.rpc_take_damage.rpc(damage, shooter_id)
+				var next = get_closest_player(body)
+				if next: velocity = (next.global_position - global_position).normalized() * speed
+				else: explode_or_die()
 
-		if b_trait != Trait.PIERCE and b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BEAM:
+		if b_trait == Trait.BOOMERANG:
+			is_returning = true 
+			return
+		if b_trait == Trait.GRAPPLE:
+			if multiplayer.is_server() and shooter: shooter.rpc("trigger_grapple_cooldown")
 			explode_or_die()
-			
+			return
+
+		if b_trait != Trait.PIERCE and b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BULLET:
+			explode_or_die()
 	else:
-		if bounces <= 0 and b_trait != Trait.PIERCE and b_trait != Trait.BEAM and b_trait != Trait.CHAIN_BEAM and b_trait != Trait.GRAPPLE:
+		if b_trait == Trait.SWAP and shooter and multiplayer.is_server():
+			shooter.global_position = global_position 
+		if b_trait == Trait.GRAPPLE:
+			is_stuck = true
+			velocity = Vector2.ZERO
+			if multiplayer.is_server(): rpc("stick_grapple", global_position)
+			return
+		if bounces <= 0 and b_trait != Trait.PIERCE and b_trait != Trait.BEAM:
 			explode_or_die()
-			
-	if b_trait == Trait.GRAPPLE:
-		is_stuck = true
-		velocity = Vector2.ZERO
+
+@rpc("call_local", "reliable")
+func stick_grapple(pos):
+	is_stuck = true
+	global_position = pos
+	velocity = Vector2.ZERO
 
 @rpc("any_peer", "call_local", "reliable")
 func destroy_bullet():
 	if multiplayer.is_server():
-		if shooter and (b_trait == Trait.REMOTE or b_trait == Trait.GRAPPLE):
-			shooter.rpc("force_reload")
+		if shooter and (b_trait == Trait.REMOTE): shooter.rpc("force_reload", true)
 		queue_free()
 
 func explode_or_die():
-	if b_effect == Effect.EXPLOSION and multiplayer.is_server():
-		for p in get_tree().get_nodes_in_group("players"):
-			if p != shooter and global_position.distance_to(p.global_position) < 150:
-				p.rpc_take_damage.rpc(damage * 1.5) 
-				
-	if b_trait == Trait.REMOTE and multiplayer.is_server() and shooter:
-		shooter.rpc("force_reload")
-		
+	if multiplayer.is_server():
+		if b_effect == Effect.EXPLOSION:
+			var shooter_id = shooter.name.to_int() if shooter else -1
+			for p in get_tree().get_nodes_in_group("players"):
+				if p != shooter and global_position.distance_to(p.global_position) < 150:
+					p.rpc_take_damage.rpc(damage * 1.5, shooter_id) 
+					
+		if b_trait == Trait.REMOTE and shooter: shooter.rpc("force_reload", true)
+		if b_trait == Trait.GRAPPLE and shooter and not is_stuck: shooter.rpc("trigger_grapple_cooldown")
+		if b_trait == Trait.BOOMERANG and shooter and not is_returning: shooter.rpc("force_reload", false) 
+			
 	queue_free()
