@@ -25,6 +25,11 @@ var beam_length: float = 0.0
 var is_stuck = false
 var is_returning = false
 
+var base_scale: Vector2 = Vector2.ONE
+var trail_points = []
+var trail_max_length = 5
+var spin_angle = 0.0
+
 @onready var raycast = $RayCast
 @onready var sprite = $Sprite2D
 
@@ -32,12 +37,14 @@ func _ready():
 	add_to_group("bullets")
 	velocity = Vector2(speed, 0).rotated(rotation)
 	base_damage = damage
+	base_scale = scale
 	
 	if is_instance_valid(shooter): raycast.add_exception(shooter) 
 
 	if b_trait == Trait.BEAM:
 		sprite.offset = Vector2(64, 0) 
-		scale.x = beam_length / 128.0 
+		base_scale.x = beam_length / 128.0 
+		scale = base_scale
 		
 	if life_time > 0: get_tree().create_timer(life_time).timeout.connect(explode_or_die)
 		
@@ -85,7 +92,53 @@ func _physics_process(delta):
 			position += normal * 2 
 			if bounces <= 0 and b_effect == Effect.EXPLOSION: explode_or_die() 
 	
-	position += velocity * delta; rotation = velocity.angle()
+	position += velocity * delta
+	
+	if b_trait != Trait.BEAM:
+		rotation = velocity.angle()
+		
+	trail_points.insert(0, global_position)
+	if trail_points.size() > trail_max_length: trail_points.pop_back()
+	queue_redraw() 
+
+	if b_trait != Trait.BEAM and b_trait != Trait.BOOMERANG and mass != 7.0:
+		var speed_factor = velocity.length() * 0.0003
+		var stretch_x = 1.0 + speed_factor
+		var stretch_y = max(0.2, 1.0 - speed_factor * 0.5) 
+		scale = Vector2(base_scale.x * stretch_x, base_scale.y * stretch_y)
+
+	if b_trait == Trait.BOOMERANG or mass == 7.0:
+		spin_angle += 25.0 * delta
+		sprite.rotation = spin_angle
+
+	if b_trait == Trait.FLAME:
+		scale = base_scale * randf_range(0.8, 1.3)
+		sprite.modulate = Color(1.0, randf_range(0.2, 0.6), 0.0, randf_range(0.6, 1.0))
+	elif b_trait == Trait.BEAM:
+		sprite.modulate.a = 0.5 + sin(time_alive * 30.0) * 0.5
+
+func _draw():
+	if trail_points.size() > 1 and b_trait != Trait.BEAM and b_trait != Trait.FLAME:
+		var trail_color = Color(1.0, 1.0, 1.0, 0.3) 
+		
+		if b_effect == Effect.EXPLOSION: trail_color = Color(1.0, 0.4, 0.0, 0.5)
+		elif b_effect == Effect.SLOW or b_trait == Trait.STASIS: trail_color = Color(0.0, 0.8, 1.0, 0.5)
+		elif b_effect == Effect.NAIL_STUN: trail_color = Color(0.6, 0.6, 0.6, 0.5)
+		elif b_trait == Trait.SWAP: trail_color = Color(0.8, 0.2, 1.0, 0.5)
+
+		for i in range(trail_points.size() - 1):
+			var p1 = to_local(trail_points[i])
+			var p2 = to_local(trail_points[i+1])
+			var alpha = 1.0 - (float(i) / trail_points.size())
+			var current_color = Color(trail_color.r, trail_color.g, trail_color.b, trail_color.a * alpha)
+			draw_line(p1, p2, current_color, 4.0 * alpha)
+
+	if b_effect == Effect.EXPLOSION: 
+		draw_circle(Vector2.ZERO, 15, Color(1.0, 0.2, 0.0, 0.2 + sin(time_alive*15)*0.1))
+	elif b_trait == Trait.STASIS: 
+		draw_circle(Vector2.ZERO, 15, Color(0.0, 0.5, 1.0, 0.3))
+	elif b_trait == Trait.HOMING: 
+		draw_circle(Vector2.ZERO, 10, Color(1.0, 0.0, 1.0, 0.3))
 
 func get_closest_player(ignore_player):
 	var closest_dist = 800.0 
@@ -111,10 +164,10 @@ func _on_body_entered(body):
 			var shooter_id = shooter.name.to_int() if shooter else -1
 			
 			if body.get("is_reflecting"):
-				velocity = -velocity; shooter = body; b_trait = Trait.NORMAL; return
+				velocity = -velocity; shooter = body; b_trait = Trait.NORMAL; trail_points.clear(); return
 			
 			if b_trait != Trait.CHAIN_BULLET: body.rpc_take_damage.rpc(damage, shooter_id)
-			if shooter and shooter.get("current_body") == 15: body.rpc_apply_status.rpc("poison")
+			if shooter and shooter.get("current_body") == 15: body.rpc_apply_status.rpc("poison") 
 			
 			if b_effect == Effect.SLOW: body.rpc_apply_status.rpc("slow")
 			elif b_effect == Effect.NAIL_STUN: body.rpc_apply_status.rpc("nail", velocity.normalized())

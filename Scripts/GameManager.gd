@@ -1,6 +1,10 @@
 extends Node
 
+signal players_updated
+
 var players = {}
+var current_game_mode = "creative"
+var match_active = true
 
 func _ready():
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -10,14 +14,17 @@ func _ready():
 func _input(event):
 	if event.is_action_pressed("ui_cancel"):
 		if get_tree().current_scene.name == "MainMenu": return 
-		if multiplayer.multiplayer_peer != null:
-			rpc_quit_to_menu.rpc()
-		else:
-			reset_and_go_to_menu()
+		if multiplayer.multiplayer_peer != null: rpc_quit_to_menu.rpc()
+		else: reset_and_go_to_menu()
 
 func _on_peer_connected(id):
 	if multiplayer.is_server():
-		players[id] = { "weapon": 0, "body": 0, "ability": 0, "ready": false } 
+		players[id] = {
+			"name": "Runer " + str(players.size() + 1),
+			"color": Color(randf(), randf(), randf(), 1.0).to_html(), 
+			"lobby_ready": false,
+			"weapon": 0, "body": 0, "ability": 0, "ready": false
+		}
 		sync_to_clients()
 
 func _on_peer_disconnected(id):
@@ -35,6 +42,7 @@ func sync_to_clients():
 @rpc("authority", "call_local", "reliable")
 func rpc_update_players(server_players):
 	players = server_players
+	players_updated.emit() 
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_quit_to_menu():
@@ -45,7 +53,6 @@ func reset_and_go_to_menu():
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = null
-	
 	call_deferred("_change_scene_to_menu")
 
 func _change_scene_to_menu():

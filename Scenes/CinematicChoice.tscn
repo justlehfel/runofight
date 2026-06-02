@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://bku6en01t5ynn"]
+
+[ext_resource type="Script" uid="uid://mxf7jgpig3jb" path="res://Scripts/CinematicChoice.gd" id="1_76t5t"]
+
+[node name="CinematicChoice" type="Control" unique_id=559494290]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_76t5t")
