@@ -14,11 +14,12 @@ func _ready():
 	GameManager.players_updated.connect(_refresh_ui)
 	_build_procedural_ui()
 	_refresh_ui()
-	_add_chat_message("Système", "FFFFFF", "Bienvenue dans le Lobby !")
+	
+	_add_chat_message("Système", "FFFFFF", "Welcome to the Lobby !")
 
 func _process(delta):
 	time_passed += delta
-	queue_redraw() 
+	queue_redraw()
 
 func _draw():
 	draw_rect(Rect2(0, 0, 1920, 1080), Color(0.05, 0.05, 0.08))
@@ -70,7 +71,7 @@ func _build_procedural_ui():
 	
 	var custom_hbox = HBoxContainer.new()
 	name_input = LineEdit.new()
-	name_input.placeholder_text = "Votre Nom"
+	name_input.placeholder_text = "Your name"
 	name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_input.text_changed.connect(_on_profile_changed)
 	custom_hbox.add_child(name_input)
@@ -86,7 +87,7 @@ func _build_procedural_ui():
 	right_vbox.add_child(spacer)
 	
 	var chat_label = Label.new()
-	chat_label.text = "Chat de groupe"
+	chat_label.text = "Group Chat"
 	chat_label.add_theme_font_size_override("font_size", 32)
 	right_vbox.add_child(chat_label)
 	
@@ -101,24 +102,26 @@ func _build_procedural_ui():
 	chat_bg.add_child(chat_display)
 	
 	chat_input = LineEdit.new()
-	chat_input.placeholder_text = "Écrivez un message (Entrée pour envoyer)..."
+	chat_input.placeholder_text = "Write a message... (Enter to send)"
 	chat_input.text_submitted.connect(_on_chat_submitted)
 	right_vbox.add_child(chat_input)
 	
 	btn_ready = Button.new()
-	btn_ready.text = "PRÊT !"
+	btn_ready.text = "READY !"
 	btn_ready.custom_minimum_size = Vector2(0, 80)
 	btn_ready.add_theme_font_size_override("font_size", 32)
 	btn_ready.pressed.connect(_on_ready_pressed)
 	right_vbox.add_child(btn_ready)
 	
-	var my_id = multiplayer.get_unique_id()
+	var is_solo = (GameManager.current_game_mode == "solo")
+	var my_id = 1 if is_solo else multiplayer.get_unique_id()
+	
 	if GameManager.players.has(my_id):
 		name_input.text = GameManager.players[my_id]["name"]
 		color_picker.color = Color(GameManager.players[my_id]["color"])
 
 func _refresh_ui():
-	count_label.text = "Joueurs: " + str(GameManager.players.size()) + "/4"
+	count_label.text = "Players: " + str(GameManager.players.size()) + "/4"
 	
 	for child in player_list_vbox.get_children():
 		child.queue_free()
@@ -147,10 +150,10 @@ func _refresh_ui():
 		
 		var status_lbl = Label.new()
 		if p_data["lobby_ready"]:
-			status_lbl.text = "PRÊT  "
+			status_lbl.text = "READY  "
 			status_lbl.modulate = Color.GREEN
 		else:
-			status_lbl.text = "En attente...  "
+			status_lbl.text = "Waiting...  "
 			status_lbl.modulate = Color.GRAY
 		status_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hbox.add_child(status_lbl)
@@ -161,48 +164,75 @@ func _on_profile_changed(_new_text): _sync_local_profile()
 func _on_color_changed(_new_color): _sync_local_profile()
 
 func _sync_local_profile():
-	var my_id = multiplayer.get_unique_id()
+	var is_solo = (GameManager.current_game_mode == "solo")
+	var my_id = 1 if is_solo else multiplayer.get_unique_id()
+	
 	var c_name = name_input.text
-	if c_name == "": c_name = "Anonyme"
+	if c_name == "": c_name = "Anonymous"
 	var c_hex = color_picker.color.to_html()
 	var is_ready = GameManager.players[my_id]["lobby_ready"]
 	
-	rpc_update_profile.rpc_id(1, my_id, c_name, c_hex, is_ready)
+	if is_solo:
+		GameManager.players[my_id]["name"] = c_name
+		GameManager.players[my_id]["color"] = c_hex
+		GameManager.players[my_id]["lobby_ready"] = is_ready
+		_refresh_ui()
+		check_launch_conditions()
+	else:
+		rpc_update_profile.rpc_id(1, my_id, c_name, c_hex, is_ready)
 
 func _on_ready_pressed():
-	var my_id = multiplayer.get_unique_id()
-	var current_status = GameManager.players[my_id]["lobby_ready"]
+	var is_solo = (GameManager.current_game_mode == "solo")
+	var my_id = 1 if is_solo else multiplayer.get_unique_id()
 	
+	var current_status = GameManager.players[my_id]["lobby_ready"]
 	GameManager.players[my_id]["lobby_ready"] = not current_status
-	btn_ready.text = "ANNULER" if not current_status else "PRÊT !"
+	btn_ready.text = "CANCEL" if not current_status else "READY !"
 	btn_ready.modulate = Color.GREEN if not current_status else Color.WHITE
 	
 	_sync_local_profile()
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_update_profile(peer_id, p_name, p_color_hex, is_ready):
-	if multiplayer.is_server():
+	if multiplayer.multiplayer_peer != null and multiplayer.is_server():
 		GameManager.players[peer_id]["name"] = p_name
 		GameManager.players[peer_id]["color"] = p_color_hex
 		GameManager.players[peer_id]["lobby_ready"] = is_ready
 		GameManager.sync_to_clients()
-		
-		var all_ready = true
-		for id in GameManager.players:
-			if not GameManager.players[id]["lobby_ready"]: all_ready = false
-		
-		if all_ready and GameManager.players.size() >= 1:
+		check_launch_conditions()
+
+func check_launch_conditions():
+	var all_ready = true
+	for id in GameManager.players:
+		if not GameManager.players[id]["lobby_ready"]: all_ready = false
+	
+	if all_ready and GameManager.players.size() >= 1:
+		var is_solo = (GameManager.current_game_mode == "solo")
+		if is_solo:
+			get_tree().change_scene_to_file("res://Scenes/RuneTree.tscn")
+		else:
 			rpc_launch_cinematic.rpc()
 
 @rpc("authority", "call_local", "reliable")
 func rpc_launch_cinematic():
-	get_tree().change_scene_to_file("res://Scenes/CinematicChoice.tscn")
+	if GameManager.current_game_mode == "regular":
+		get_tree().change_scene_to_file("res://Scenes/CinematicChoice.tscn")
+	else:
+		get_tree().change_scene_to_file("res://Scenes/RuneTree.tscn")
 
 func _on_chat_submitted(new_text):
 	if new_text.strip_edges() == "": return
 	chat_input.text = ""
-	var my_id = multiplayer.get_unique_id()
-	rpc_send_message.rpc(my_id, new_text)
+	
+	var is_solo = (GameManager.current_game_mode == "solo")
+	var my_id = 1 if is_solo else multiplayer.get_unique_id()
+	
+	if is_solo:
+		var p_name = GameManager.players[my_id]["name"]
+		var p_color = GameManager.players[my_id]["color"]
+		_add_chat_message(p_name, p_color, new_text)
+	else:
+		rpc_send_message.rpc(my_id, new_text)
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_send_message(sender_id, text):

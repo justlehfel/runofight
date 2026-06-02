@@ -134,6 +134,7 @@ var smash_active = false
 var invis_timer = 0.0
 
 var time_passed = 0.0
+var network_is_on_floor = false
 
 @export var is_dummy: bool = false
 @onready var sprite = $Sprite2D
@@ -221,129 +222,173 @@ func _physics_process(delta):
 	
 	queue_redraw()
 
-	if not GameManager.match_active:
-		velocity.y += base_gravity * BODY_STATS[current_body].grv * delta
-		velocity.x = move_toward(velocity.x, 0, 200)
-		move_and_slide()
-		return
-
-	if current_ability == AbilityType.JETPACK:
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
-			if jetpack_fuel > 0 and ability_timer <= 0:
-				jetpack_fuel -= delta; velocity.y -= 2500 * delta
-				if jetpack_fuel <= 0: ability_timer = ABILITY_CD[current_ability]
-		if ability_timer > 0:
-			ability_timer -= delta
-			if ability_timer <= 0: jetpack_fuel = 4.0
-	else:
-		if ability_timer > 0: ability_timer -= delta
-
 	handle_status_effects(delta)
 	process_body_passives(delta)
 	process_abilities(delta)
-	process_procedural_animations(delta)
-
+	
 	hp_bar.value = hp
 	if not reload_timer.is_stopped(): reload_circle.show(); reload_circle.value = (1.0 - (reload_timer.time_left / reload_timer.wait_time)) * 100
 	else: reload_circle.hide()
 
-	if not is_multiplayer_authority(): return
+	if not GameManager.match_active:
+		if is_multiplayer_authority():
+			velocity.y += base_gravity * BODY_STATS[current_body].grv * delta
+			velocity.x = move_toward(velocity.x, 0, 200)
+			move_and_slide()
+			rpc_sync_physics.rpc(global_position, velocity, ammo, is_on_floor(), jetpack_fuel, ability_timer)
+		
+		weapon_pivot.look_at(sync_mouse_pos if not is_multiplayer_authority() else get_global_mouse_position())
+		process_procedural_animations(delta)
+		return
 
-	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
-		if ability_timer <= 0 and status_stasis_timer <= 0 and current_ability != AbilityType.JETPACK:
-			trigger_ability()
-
-	var current_mouse = get_global_mouse_position()
-	if current_mouse.distance_to(sync_mouse_pos) > 5.0: sync_mouse_pos = current_mouse; rpc_update_mouse.rpc(sync_mouse_pos)
-
-	var is_grappling = false
-	if current_weapon == GunType.GRAPPLING_HOOK and is_instance_valid(active_grapple):
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-			if active_grapple.is_stuck:
-				velocity = (active_grapple.global_position - global_position).normalized() * 2500 
-				is_grappling = true
-		else: active_grapple.rpc("destroy_bullet"); active_grapple = null; rpc("force_reload", true)
-	
-	if is_on_floor():
-		air_jumps_left = BODY_STATS[current_body].air_jumps
-		if not was_on_floor and current_body == BodyType.HEAVY_WEIGHT:
-			for p in get_tree().get_nodes_in_group("players"):
-				if p != self and not p.is_dead and global_position.distance_to(p.global_position) < 150:
-					p.rpc_take_damage.rpc(15, name.to_int())
-					p.rpc_pull.rpc(global_position, -300)
-		if not was_on_floor and not smash_active and velocity.y > 100: animate_landing()
-		if smash_active: smash_active = false; rpc_ground_smash_fx.rpc()
-	was_on_floor = is_on_floor()
-
-	var wall_sliding = false
-	if is_on_wall() and not is_on_floor():
-		if Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right"): wall_sliding = true
-
-	var gravity = base_gravity * BODY_STATS[current_body].grv
-
-	if not is_on_floor() and not is_grappling and not (current_ability == AbilityType.JETPACK and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and jetpack_fuel > 0 and ability_timer <= 0) and not is_anchored:
-		var current_grav = gravity
-		if smash_active and velocity.y > 0: current_grav *= 10.0
-		if wall_sliding and velocity.y > 0: current_grav = gravity/4; velocity.y = minf(velocity.y, 350)
-		if current_body == BodyType.FEATHER_FALLING and Input.is_action_pressed("ui_up") and velocity.y > 0:
-			current_grav = gravity * 0.1; velocity.y = minf(velocity.y, 100)
-		if Input.is_action_pressed("ui_down"):
-			current_grav *= 5.0 
-			if wall_sliding and velocity.y > 0: velocity.y = maxf(velocity.y, 350)
-		if current_body == BodyType.ARACHNID and is_on_ceiling() and Input.is_action_pressed("ui_up"):
-			current_grav = 0; velocity.y = 0; air_jumps_left = 1
-		velocity.y += current_grav * delta
-	
-	if not is_grappling and status_stasis_timer <= 0:
-		if status_pin_timer <= 0 and not is_anchored:
-			if Input.is_action_just_pressed("ui_up") and status_tractor_timer <= 0:
-				if is_on_floor() or air_jumps_left > 0 or (wall_sliding and current_body != BodyType.HEAVY_WEIGHT):
-					if not is_on_floor() and not wall_sliding: air_jumps_left -= 1
-					velocity.y = JUMP_VELOCITY * BODY_STATS[current_body].jmp
-					animate_jump()
-					if wall_sliding: velocity.x = 1100 if Input.is_action_pressed("ui_left") else -1100
-
-			var direction = 0.0 if status_tractor_timer > 0 else Input.get_axis("ui_left", "ui_right")
-			var arena_buff = 1.0
-			for d in get_tree().get_nodes_in_group("arena_domes"):
-				if global_position.distance_to(d.global_position) < 600:
-					arena_buff = 1.25 if d.get_meta("caster") == name.to_int() else 0.85
-			
-			var speed_modifier = current_speed * BODY_STATS[current_body].spd * arena_buff
-			if rawwr_timer > 0: speed_modifier *= 1.5
-			if shrink_timer > 0: speed_modifier *= 1.2
-			if current_weapon == GunType.MINIGUN and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): speed_modifier *= 0.75 
-				
-			var friction = 200
-			if current_body == BodyType.FROZEN_FEET: friction = 10 
-				
-			if nail_knockback_velocity.length() > 0: velocity = nail_knockback_velocity
-			elif direction: velocity.x = move_toward(velocity.x, direction * speed_modifier, friction)
-			elif not is_on_floor(): velocity.x = move_toward(velocity.x, 0, 10)
-			else: velocity.x = move_toward(velocity.x, 0, friction)
+	if is_multiplayer_authority():
+		if current_ability == AbilityType.JETPACK:
+			if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
+				if jetpack_fuel > 0 and ability_timer <= 0:
+					jetpack_fuel -= delta; velocity.y -= 2500 * delta
+					if jetpack_fuel <= 0: ability_timer = ABILITY_CD[current_ability]
+			if ability_timer > 0:
+				ability_timer -= delta
+				if ability_timer <= 0: jetpack_fuel = 4.0
 		else:
-			velocity.x = move_toward(velocity.x, 0, current_speed * 0.1) 
+			if ability_timer > 0: ability_timer -= delta
 
-	move_and_slide()
-	weapon_pivot.look_at(get_global_mouse_position())
+		var is_grappling = false
+		if current_weapon == GunType.GRAPPLING_HOOK and is_instance_valid(active_grapple):
+			if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+				if active_grapple.is_stuck:
+					velocity = (active_grapple.global_position - global_position).normalized() * 2500 
+					is_grappling = true
+			else: 
+				active_grapple.rpc("destroy_bullet"); active_grapple = null; rpc("force_reload", true)
+
+		var current_mouse = get_global_mouse_position()
+		if current_mouse.distance_to(sync_mouse_pos) > 5.0: 
+			sync_mouse_pos = current_mouse
+			rpc_update_mouse.rpc(sync_mouse_pos)
+		
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
+			if ability_timer <= 0 and status_stasis_timer <= 0 and current_ability != AbilityType.JETPACK:
+				trigger_ability()
+
+		var wall_sliding = false
+		if is_on_wall() and not is_on_floor():
+			if Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right"): wall_sliding = true
+
+		var gravity = base_gravity * BODY_STATS[current_body].grv
+
+		if not is_on_floor() and not is_grappling and not (current_ability == AbilityType.JETPACK and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and jetpack_fuel > 0 and ability_timer <= 0) and not is_anchored:
+			var current_grav = gravity
+			if smash_active and velocity.y > 0: current_grav *= 10.0
+			if wall_sliding and velocity.y > 0: current_grav = gravity/4; velocity.y = minf(velocity.y, 350)
+			if current_body == BodyType.FEATHER_FALLING and Input.is_action_pressed("ui_up") and velocity.y > 0:
+				current_grav = gravity * 0.1; velocity.y = minf(velocity.y, 100)
+			if Input.is_action_pressed("ui_down"):
+				current_grav *= 5.0 
+				if wall_sliding and velocity.y > 0: velocity.y = maxf(velocity.y, 350)
+			if current_body == BodyType.ARACHNID and is_on_ceiling() and Input.is_action_pressed("ui_up"):
+				current_grav = 0; velocity.y = 0; air_jumps_left = 1
+			velocity.y += current_grav * delta
+		
+		if not is_grappling and status_stasis_timer <= 0:
+			if status_pin_timer <= 0 and not is_anchored:
+				if Input.is_action_just_pressed("ui_up") and status_tractor_timer <= 0:
+					if is_on_floor() or air_jumps_left > 0 or (wall_sliding and current_body != BodyType.HEAVY_WEIGHT):
+						if not is_on_floor() and not wall_sliding: air_jumps_left -= 1
+						velocity.y = JUMP_VELOCITY * BODY_STATS[current_body].jmp
+						rpc_animate_jump.rpc()
+						if wall_sliding: velocity.x = 1100 if Input.is_action_pressed("ui_left") else -1100
+
+				var direction = 0.0 if status_tractor_timer > 0 else Input.get_axis("ui_left", "ui_right")
+				var arena_buff = 1.0
+				for d in get_tree().get_nodes_in_group("arena_domes"):
+					if global_position.distance_to(d.global_position) < 600:
+						arena_buff = 1.25 if d.get_meta("caster") == name.to_int() else 0.85
+				
+				var speed_modifier = current_speed * BODY_STATS[current_body].spd * arena_buff
+				if rawwr_timer > 0: speed_modifier *= 1.5
+				if shrink_timer > 0: speed_modifier *= 1.2
+				if current_weapon == GunType.MINIGUN and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): speed_modifier *= 0.75 
+					
+				var friction = 200
+				if current_body == BodyType.FROZEN_FEET: friction = 10 
+					
+				if nail_knockback_velocity.length() > 0: velocity = nail_knockback_velocity
+				elif direction: velocity.x = move_toward(velocity.x, direction * speed_modifier, friction)
+				elif not is_on_floor(): velocity.x = move_toward(velocity.x, 0, 30)
+				else: velocity.x = move_toward(velocity.x, 0, friction)
+			else:
+				velocity.x = move_toward(velocity.x, 0, current_speed * 0.1) 
+
+		move_and_slide()
+		
+		if is_on_floor():
+			air_jumps_left = BODY_STATS[current_body].air_jumps
+			if not was_on_floor and current_body == BodyType.HEAVY_WEIGHT:
+				for p in get_tree().get_nodes_in_group("players"):
+					if p != self and not p.is_dead and global_position.distance_to(p.global_position) < 150:
+						p.rpc_take_damage.rpc(15, name.to_int())
+						p.rpc_pull.rpc(global_position, -300)
+			if not was_on_floor and not smash_active and velocity.y > 100: rpc_animate_landing.rpc()
+			if smash_active: smash_active = false; rpc_ground_smash_fx.rpc()
+		was_on_floor = is_on_floor()
+
+		if nail_knockback_velocity.length() > 0:
+			nail_knockback_velocity = nail_knockback_velocity.lerp(Vector2.ZERO, 10.0 * delta)
+			if is_on_wall() and velocity.length() > 500:
+				status_pin_timer = 2.0; nail_knockback_velocity = Vector2.ZERO
+				rpc_apply_status.rpc("pin") 
+
+		var stats = WEAPON_STATS[current_weapon]
+		var wants_to_shoot = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) if stats.auto else Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+
+		if current_weapon == GunType.CHARGE_GUN:
+			if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and ammo > 0 and can_shoot and status_stasis_timer <= 0:
+				is_charging = true; charge_level = min(charge_level + delta, 5.0)
+			elif is_charging:
+				is_charging = false; shoot(charge_level); charge_level = 0.0
+		else:
+			if current_weapon == GunType.MINIGUN and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): minigun_heat = 0.0 
+			if wants_to_shoot and ammo > 0 and can_shoot and status_stasis_timer <= 0: shoot()
+
+		rpc_sync_physics.rpc(global_position, velocity, ammo, is_on_floor(), jetpack_fuel, ability_timer)
+
+	weapon_pivot.look_at(sync_mouse_pos if not is_multiplayer_authority() else get_global_mouse_position())
+	process_procedural_animations(delta)
+
+@rpc("unreliable", "call_remote")
+func rpc_sync_physics(pos, vel, sync_ammo, floor_flag, j_fuel, a_timer):
+	global_position = global_position.lerp(pos, 0.5) if global_position.distance_to(pos) < 200 else pos
+	velocity = vel
+	network_is_on_floor = floor_flag
+	jetpack_fuel = j_fuel
+	ability_timer = a_timer
 	
-	if nail_knockback_velocity.length() > 0:
-		nail_knockback_velocity = nail_knockback_velocity.lerp(Vector2.ZERO, 10.0 * delta)
-		if is_on_wall() and velocity.length() > 500:
-			status_pin_timer = 2.0; nail_knockback_velocity = Vector2.ZERO
-			rpc_apply_status.rpc("pin") 
+	if ammo != sync_ammo:
+		ammo = sync_ammo
+		update_ammo_ui()
 
-	var stats = WEAPON_STATS[current_weapon]
-	var wants_to_shoot = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) if stats.auto else Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+func check_floor() -> bool:
+	return is_on_floor() if is_multiplayer_authority() else network_is_on_floor
 
-	if current_weapon == GunType.CHARGE_GUN:
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and ammo > 0 and can_shoot and status_stasis_timer <= 0:
-			is_charging = true; charge_level = min(charge_level + delta, 5.0); return 
-		elif is_charging:
-			is_charging = false; shoot(charge_level); charge_level = 0.0; return
-			
-	if current_weapon == GunType.MINIGUN and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): minigun_heat = 0.0 
-	if wants_to_shoot and ammo > 0 and can_shoot and status_stasis_timer <= 0: shoot()
+func process_procedural_animations(delta):
+	if is_dead: return
+	
+	var base_scl = base_sprite_scale * BODY_STATS[current_body].scl
+	if shrink_timer > 0: base_scl *= 0.5
+		
+	var target_rotation = velocity.x * 0.0003 if not is_anchored else 0.0
+	sprite.rotation = lerp_angle(sprite.rotation, target_rotation, delta * 12.0)
+	
+	if check_floor() and abs(velocity.x) < 10:
+		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + sin(time_passed * 4.0) * 0.05), delta * 8.0)
+		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - sin(time_passed * 4.0) * 0.02), delta * 8.0)
+	elif check_floor():
+		sprite.scale = sprite.scale.lerp(base_scl, delta * 15.0)
+	else:
+		var stretch = clamp(velocity.y * 0.0005, -0.2, 0.2)
+		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + stretch), delta * 15.0)
+		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - stretch), delta * 15.0)
 
 func _draw():
 	if status_blind_timer > 0 and is_multiplayer_authority(): 
@@ -389,32 +434,15 @@ func _draw():
 	if current_body == BodyType.FIRE_AURA: draw_circle(Vector2.ZERO, 300, Color(1, 0.5, 0, 0.1))
 	if rawwr_timer > 0: draw_circle(Vector2.ZERO, 50, Color(1, 0, 0, 0.3))
 
-func process_procedural_animations(delta):
-	if is_dead: return
-	
-	var base_scl = base_sprite_scale * BODY_STATS[current_body].scl
-	if shrink_timer > 0: base_scl *= 0.5
-		
-	var target_rotation = velocity.x * 0.0003 if not is_anchored else 0.0
-	sprite.rotation = lerp_angle(sprite.rotation, target_rotation, delta * 12.0)
-	
-	if is_on_floor() and abs(velocity.x) < 10:
-		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + sin(time_passed * 4.0) * 0.05), delta * 8.0)
-		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - sin(time_passed * 4.0) * 0.02), delta * 8.0)
-	elif is_on_floor():
-		sprite.scale = sprite.scale.lerp(base_scl, delta * 15.0)
-	else:
-		var stretch = clamp(velocity.y * 0.0005, -0.2, 0.2)
-		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + stretch), delta * 15.0)
-		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - stretch), delta * 15.0)
-
-func animate_jump():
+@rpc("any_peer", "call_local", "reliable")
+func rpc_animate_jump():
 	var tw = create_tween()
 	var scl = base_sprite_scale * BODY_STATS[current_body].scl * (0.5 if shrink_timer > 0 else 1.0)
 	sprite.scale = Vector2(scl.x * 0.5, scl.y * 1.5)
 	tw.tween_property(sprite, "scale", scl, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
-func animate_landing():
+@rpc("any_peer", "call_local", "reliable")
+func rpc_animate_landing():
 	var tw = create_tween()
 	var scl = base_sprite_scale * BODY_STATS[current_body].scl * (0.5 if shrink_timer > 0 else 1.0)
 	sprite.scale = Vector2(scl.x * 1.4, scl.y * 0.6)
