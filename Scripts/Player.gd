@@ -132,6 +132,7 @@ var roll_timer = 0.0
 var jetpack_fuel = 4.0
 var smash_active = false
 var invis_timer = 0.0
+var time_passed = 0.0
 
 @export var is_dummy: bool = false
 @onready var sprite = $Sprite2D
@@ -199,15 +200,15 @@ func equip_runes():
 func _physics_process(delta):
 	if multiplayer.multiplayer_peer == null: return 
 	time_since_spawn += delta
+	time_passed += delta
 	if is_dead: return 
 	
-	queue_redraw() 
+	queue_redraw()
 
 	if current_ability == AbilityType.JETPACK:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
 			if jetpack_fuel > 0 and ability_timer <= 0:
-				jetpack_fuel -= delta
-				velocity.y -= 2500 * delta
+				jetpack_fuel -= delta; velocity.y -= 2500 * delta
 				if jetpack_fuel <= 0: ability_timer = ABILITY_CD[current_ability]
 		if ability_timer > 0:
 			ability_timer -= delta
@@ -218,6 +219,7 @@ func _physics_process(delta):
 	handle_status_effects(delta)
 	process_body_passives(delta)
 	process_abilities(delta)
+	process_procedural_animations(delta)
 
 	hp_bar.value = hp
 	if not reload_timer.is_stopped(): reload_circle.show(); reload_circle.value = (1.0 - (reload_timer.time_left / reload_timer.wait_time)) * 100
@@ -247,6 +249,7 @@ func _physics_process(delta):
 				if p != self and not p.is_dead and global_position.distance_to(p.global_position) < 150:
 					p.rpc_take_damage.rpc(15, name.to_int())
 					p.rpc_pull.rpc(global_position, -300)
+		if not was_on_floor and not smash_active and velocity.y > 100: animate_landing()
 		if smash_active: smash_active = false; rpc_ground_smash_fx.rpc()
 	was_on_floor = is_on_floor()
 
@@ -330,58 +333,77 @@ func _draw():
 		draw_rect(Rect2(hp_bar.position.x, hp_bar.position.y - 8, shield_w, 6), Color(0.2, 0.6, 1.0, 0.9))
 	
 	var ratio = 1.0
-	var outline_color = Color(1.0, 0.2, 0.8) 
-	
+	var outline_color = Color(1.0, 0.2, 0.8)
 	if current_ability == AbilityType.JETPACK:
-		ratio = jetpack_fuel / 4.0
-		outline_color = Color(1.0, 0.8, 0.2)
+		ratio = jetpack_fuel / 4.0; outline_color = Color(1.0, 0.8, 0.2)
 	else:
 		var cd = ABILITY_CD[current_ability]
 		ratio = 1.0 - (ability_timer / cd) if ability_timer > 0 else 1.0
 
-	var padding = 2.0 
+	var padding = 2.0
 	var rect_pos = hp_bar.position - Vector2(padding, padding)
 	var rect_size = hp_bar.size + Vector2(padding * 2, padding * 2)
 	
-	var w = rect_size.x
-	var h = rect_size.y
-	var perimeter = (2 * w) + (2 * h) 
+	var w = rect_size.x; var h = rect_size.y
+	var perimeter = (2 * w) + (2 * h)
 	var target_dist = ratio * perimeter
 	
-	var p0 = rect_pos
-	var p1 = rect_pos + Vector2(w, 0)
-	var p2 = rect_pos + Vector2(w, h)
-	var p3 = rect_pos + Vector2(0, h)
+	var p0 = rect_pos; var p1 = rect_pos + Vector2(w, 0); var p2 = rect_pos + Vector2(w, h); var p3 = rect_pos + Vector2(0, h)
 	var points = [p0, p1, p2, p3, p0]
-	
 	var thickness = 2.0
 	
 	if ratio >= 1.0:
 		draw_rect(Rect2(rect_pos, rect_size), outline_color, false, thickness)
-		
 		var glow_rect = Rect2(rect_pos - Vector2(2, 2), rect_size + Vector2(4, 4))
 		var glow_color = Color(outline_color.r, outline_color.g, outline_color.b, 0.4)
 		draw_rect(glow_rect, glow_color, false, thickness + 2.0)
-		
 	elif target_dist > 0:
-		var current_dist = target_dist
-		var drawn_points = [p0] 
-		
+		var current_dist = target_dist; var drawn_points = [p0]
 		for i in range(4):
 			var segment_len = (points[i+1] - points[i]).length()
-			if current_dist >= segment_len:
-				drawn_points.append(points[i+1])
-				current_dist -= segment_len
-			else:
-				var dir = (points[i+1] - points[i]).normalized()
-				drawn_points.append(points[i] + dir * current_dist)
-				break
-		
-		for i in range(drawn_points.size() - 1):
-			draw_line(drawn_points[i], drawn_points[i+1], outline_color, thickness)
+			if current_dist >= segment_len: drawn_points.append(points[i+1]); current_dist -= segment_len
+			else: drawn_points.append(points[i] + (points[i+1] - points[i]).normalized() * current_dist); break 
+		for i in range(drawn_points.size() - 1): draw_line(drawn_points[i], drawn_points[i+1], outline_color, thickness)
 
 	if current_body == BodyType.FIRE_AURA: draw_circle(Vector2.ZERO, 300, Color(1, 0.5, 0, 0.1))
 	if rawwr_timer > 0: draw_circle(Vector2.ZERO, 50, Color(1, 0, 0, 0.3))
+
+func process_procedural_animations(delta):
+	if is_dead: return
+	
+	var base_scl = base_sprite_scale * BODY_STATS[current_body].scl
+	if shrink_timer > 0: base_scl *= 0.5
+		
+	var target_rotation = velocity.x * 0.0003 if not is_anchored else 0.0
+	sprite.rotation = lerp_angle(sprite.rotation, target_rotation, delta * 12.0)
+	
+	if is_on_floor() and abs(velocity.x) < 10:
+		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + sin(time_passed * 4.0) * 0.05), delta * 8.0)
+		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - sin(time_passed * 4.0) * 0.02), delta * 8.0)
+	elif is_on_floor():
+		sprite.scale = sprite.scale.lerp(base_scl, delta * 15.0)
+	else:
+		var stretch = clamp(velocity.y * 0.0005, -0.2, 0.2)
+		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + stretch), delta * 15.0)
+		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - stretch), delta * 15.0)
+
+func animate_jump():
+	var tw = create_tween()
+	var scl = base_sprite_scale * BODY_STATS[current_body].scl * (0.5 if shrink_timer > 0 else 1.0)
+	sprite.scale = Vector2(scl.x * 0.5, scl.y * 1.5)
+	tw.tween_property(sprite, "scale", scl, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+func animate_landing():
+	var tw = create_tween()
+	var scl = base_sprite_scale * BODY_STATS[current_body].scl * (0.5 if shrink_timer > 0 else 1.0)
+	sprite.scale = Vector2(scl.x * 1.4, scl.y * 0.6)
+	tw.tween_property(sprite, "scale", scl, 0.3).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+
+func animate_recoil(charge_bonus: float = 0.0):
+	if current_body == BodyType.HEAVY_WEIGHT: return 
+	var tw = create_tween()
+	gun_sprite.position.x = original_gun_pos.x - (15 + charge_bonus * 10.0) 
+	tw.tween_property(gun_sprite, "position:x", original_gun_pos.x, 0.2).set_trans(Tween.TRANS_SPRING)
 
 func trigger_ability():
 	if current_ability != AbilityType.JETPACK: ability_timer = ABILITY_CD[current_ability]
@@ -390,9 +412,13 @@ func trigger_ability():
 @rpc("any_peer", "call_local", "reliable")
 func rpc_use_ability(ability_id, target_pos):
 	if ability_id != AbilityType.JETPACK:
-		var flash = ColorRect.new(); flash.color = Color(1.0, 0.2, 0.8, 0.8); flash.position = Vector2(-50, -50); flash.size = Vector2(100, 100)
-		add_child(flash); var tw = create_tween(); tw.tween_property(flash, "scale", Vector2(3,3), 0.3); tw.parallel().tween_property(flash, "modulate:a", 0.0, 0.3)
-		get_tree().create_timer(0.3).timeout.connect(func(): flash.queue_free())
+		var ghost = Sprite2D.new(); ghost.texture = sprite.texture; ghost.global_position = sprite.global_position
+		ghost.scale = sprite.scale; ghost.rotation = sprite.rotation; ghost.modulate = Color(1.0, 0.2, 0.8, 0.8)
+		get_tree().current_scene.add_child(ghost)
+		var tw = create_tween().set_parallel(true)
+		tw.tween_property(ghost, "scale", ghost.scale * 2.0, 0.4).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ghost, "modulate:a", 0.0, 0.4).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		tw.chain().tween_callback(ghost.queue_free)
 		
 	match ability_id:
 		AbilityType.DASH: velocity = (target_pos - global_position).normalized() * 1500
@@ -409,7 +435,7 @@ func rpc_use_ability(ability_id, target_pos):
 					if is_instance_valid(w) and global_position.distance_to(w.global_position) < 200: w.queue_free()
 		AbilityType.TELEPORT:
 			if global_position.distance_to(target_pos) > 600: target_pos = global_position + (target_pos - global_position).normalized() * 600
-			global_position = target_pos 
+			global_position = target_pos
 		AbilityType.SMASH:
 			if is_on_floor(): velocity.y = -1000; get_tree().create_timer(0.3).timeout.connect(func(): smash_active = true)
 			else: smash_active = true
@@ -456,6 +482,7 @@ func rpc_use_ability(ability_id, target_pos):
 func rpc_apply_heal(amount):
 	if current_body == BodyType.PASSIVE_REGEN: amount *= 0.9
 	hp = min(hp + amount, max_hp)
+	rpc_spawn_floating_text.rpc("+" + str(int(amount)), Color.GREEN)
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_ground_smash_fx():
@@ -519,6 +546,15 @@ func rpc_spawn_object(type, pos):
 		get_tree().current_scene.add_child(decoy)
 		var tween = create_tween(); tween.tween_property(decoy, "position:x", pos.x + 800, 3.0)
 		get_tree().create_timer(4.0).timeout.connect(func(): if is_instance_valid(decoy): decoy.queue_free())
+
+@rpc("any_peer", "call_local", "unreliable")
+func rpc_spawn_floating_text(text: String, color: Color):
+	var label = Label.new(); label.text = text; label.modulate = color; label.global_position = global_position + Vector2(-20, -50)
+	get_tree().current_scene.add_child(label)
+	var tw = create_tween().set_parallel(true)
+	tw.tween_property(label, "global_position:y", label.global_position.y - 100, 1.0).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_property(label, "modulate:a", 0.0, 1.0).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(label.queue_free)
 
 func process_abilities(delta):
 	if reflect_timer > 0:
@@ -665,18 +701,6 @@ func handle_status_effects(delta):
 	elif status_slow_timer > 0: status_slow_timer -= delta; current_speed = BASE_SPEED * 0.75; sprite.modulate = Color.CYAN 
 	else: current_speed = BASE_SPEED; sprite.modulate = original_color
 
-func animate_jump():
-	var tween = create_tween()
-	var scl = base_sprite_scale * BODY_STATS[current_body].scl * (0.5 if shrink_timer > 0 else 1.0)
-	sprite.scale = Vector2(scl.x * 0.5, scl.y * 1.5)
-	tween.tween_property(sprite, "scale", scl, 0.3).set_trans(Tween.TRANS_ELASTIC)
-
-func animate_recoil(charge_bonus: float = 0.0):
-	if current_body == BodyType.HEAVY_WEIGHT: return 
-	var tween = create_tween()
-	gun_sprite.position.x = original_gun_pos.x - (15 + charge_bonus * 10.0) 
-	tween.tween_property(gun_sprite, "position:x", original_gun_pos.x, 0.2).set_trans(Tween.TRANS_SPRING)
-
 @rpc("any_peer", "call_local", "reliable")
 func rpc_apply_status(type, dir = Vector2.ZERO, duration = 1.0, caster_id = -1):
 	if type == "slow": status_slow_timer = 2.0
@@ -702,6 +726,7 @@ func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
 	if current_body == BodyType.BOMBER and attacker_id == name.to_int(): return
 	if current_body == BodyType.GAMBLER and randf() < 0.25:
 		amount *= 0.5; var tw = create_tween(); sprite.modulate = Color.BLUE; tw.tween_property(sprite, "modulate", original_color, 0.3)
+		rpc_spawn_floating_text.rpc("Dodged!", Color.BLUE)
 	if current_body == BodyType.LAST_STAND and hp <= max_hp * 0.25: amount *= 0.5
 	
 	if temp_hp > 0:
@@ -722,6 +747,7 @@ func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
 		var query = PhysicsRayQueryParameters2D.create(global_position, tp_pos); var res = space.intersect_ray(query)
 		if res: tp_pos = res.position - (tp_pos - global_position).normalized() * 30
 		global_position = tp_pos
+		rpc_spawn_floating_text.rpc("Blink!", Color.PURPLE)
 		amount = 0
 	
 	hp -= amount; invis_timer = 0.0
