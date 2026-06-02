@@ -28,35 +28,78 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1283407335]
+[node name="PlaySubMenu" type="Panel" parent="." unique_id=767636223]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="BtnSolo" type="Button" parent="PlaySubMenu" unique_id=531427378]
+layout_mode = 0
+offset_left = 3.0
+offset_top = -1.0
+offset_right = 623.0
+offset_bottom = 1077.0
+theme_override_font_sizes/font_size = 60
+text = "Solo (Training)"
+
+[node name="BtnMultiRegular" type="Button" parent="PlaySubMenu" unique_id=730272731]
+layout_mode = 0
+offset_left = 622.0
+offset_top = -2.0
+offset_right = 1274.0
+offset_bottom = 1080.0
+theme_override_font_sizes/font_size = 55
+text = "Multiplayer (Regular)"
+
+[node name="BtnMultiCreative" type="Button" parent="PlaySubMenu" unique_id=1225211276]
+layout_mode = 0
+offset_left = 1273.0
+offset_right = 1921.0
+offset_bottom = 1079.0
+theme_override_font_sizes/font_size = 55
+text = "Multiplayer (Creative)"
+
+[node name="BtnBack" type="Button" parent="PlaySubMenu" unique_id=1751489349]
+layout_mode = 0
+offset_left = 1767.0
+offset_top = 26.0
+offset_right = 1881.0
+offset_bottom = 73.0
+text = "BACK"
+
+[node name="NetworkMenu" type="VBoxContainer" parent="." unique_id=1283407335]
 layout_mode = 0
 offset_left = 484.0
 offset_top = 267.0
 offset_right = 1431.0
 offset_bottom = 837.0
 
-[node name="Label" type="Label" parent="VBoxContainer" unique_id=1341254487]
+[node name="Label" type="Label" parent="NetworkMenu" unique_id=1341254487]
 layout_mode = 2
 theme_override_font_sizes/font_size = 150
 text = "Rune-O-Fight"
 
-[node name="IpInput" type="LineEdit" parent="VBoxContainer" unique_id=1683042989]
+[node name="IpInput" type="LineEdit" parent="NetworkMenu" unique_id=1683042989]
 layout_mode = 2
 theme_override_font_sizes/font_size = 50
 placeholder_text = "Entrer IP (vide = local)"
 alignment = 1
 
-[node name="BtnHost" type="Button" parent="VBoxContainer" unique_id=1254787382]
+[node name="BtnHost" type="Button" parent="NetworkMenu" unique_id=1254787382]
 layout_mode = 2
 theme_override_font_sizes/font_size = 50
 text = "Host"
 
-[node name="BtnJoin" type="Button" parent="VBoxContainer" unique_id=1572314379]
+[node name="BtnJoin" type="Button" parent="NetworkMenu" unique_id=1572314379]
 layout_mode = 2
 theme_override_font_sizes/font_size = 50
 text = "Join"
 
-[node name="BtnQuit" type="Button" parent="VBoxContainer" unique_id=450033707]
+[node name="BtnQuit" type="Button" parent="NetworkMenu" unique_id=450033707]
 layout_mode = 2
 theme_override_font_sizes/font_size = 50
 text = "Quit"

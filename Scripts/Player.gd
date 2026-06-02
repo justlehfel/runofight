@@ -132,6 +132,7 @@ var roll_timer = 0.0
 var jetpack_fuel = 4.0
 var smash_active = false
 var invis_timer = 0.0
+
 var time_passed = 0.0
 
 @export var is_dummy: bool = false
@@ -178,7 +179,22 @@ func _ready():
 	reload_timer = Timer.new(); reload_timer.one_shot = true; reload_timer.timeout.connect(_on_reload_finished); add_child(reload_timer)
 	reload_delay_timer = Timer.new(); reload_delay_timer.wait_time = 1.0; reload_delay_timer.one_shot = true; reload_delay_timer.timeout.connect(_on_reload_delay_finished); add_child(reload_delay_timer)
 	reload_circle.hide()
+	
 	if is_multiplayer_authority() and has_node("Camera2D"): $Camera2D.make_current()
+
+	if GameManager.players.has(my_peer_id):
+		var p_data = GameManager.players[my_peer_id]
+		var name_tag = Label.new()
+		name_tag.text = p_data["name"]
+		name_tag.modulate = Color(p_data["color"]) 
+		name_tag.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		name_tag.position = Vector2(-100, -90)
+		name_tag.custom_minimum_size = Vector2(200, 30)
+		name_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_tag.add_theme_font_size_override("font_size", 20)
+		name_tag.add_theme_color_override("font_outline_color", Color.BLACK)
+		name_tag.add_theme_constant_override("outline_size", 4)
+		add_child(name_tag)
 
 func equip_runes():
 	var g_stats = WEAPON_STATS[current_weapon]; var b_stats = BODY_STATS[current_body]
@@ -204,6 +220,12 @@ func _physics_process(delta):
 	if is_dead: return 
 	
 	queue_redraw()
+
+	if not GameManager.match_active:
+		velocity.y += base_gravity * BODY_STATS[current_body].grv * delta
+		velocity.x = move_toward(velocity.x, 0, 200)
+		move_and_slide()
+		return
 
 	if current_ability == AbilityType.JETPACK:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
@@ -282,7 +304,6 @@ func _physics_process(delta):
 					if wall_sliding: velocity.x = 1100 if Input.is_action_pressed("ui_left") else -1100
 
 			var direction = 0.0 if status_tractor_timer > 0 else Input.get_axis("ui_left", "ui_right")
-			
 			var arena_buff = 1.0
 			for d in get_tree().get_nodes_in_group("arena_domes"):
 				if global_position.distance_to(d.global_position) < 600:
@@ -482,7 +503,7 @@ func rpc_use_ability(ability_id, target_pos):
 func rpc_apply_heal(amount):
 	if current_body == BodyType.PASSIVE_REGEN: amount *= 0.9
 	hp = min(hp + amount, max_hp)
-	rpc_spawn_floating_text.rpc("+" + str(int(amount)), Color.GREEN)
+	spawn_floating_text_local("+" + str(int(amount)), Color.GREEN)
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_ground_smash_fx():
@@ -547,8 +568,7 @@ func rpc_spawn_object(type, pos):
 		var tween = create_tween(); tween.tween_property(decoy, "position:x", pos.x + 800, 3.0)
 		get_tree().create_timer(4.0).timeout.connect(func(): if is_instance_valid(decoy): decoy.queue_free())
 
-@rpc("any_peer", "call_local", "unreliable")
-func rpc_spawn_floating_text(text: String, color: Color):
+func spawn_floating_text_local(text: String, color: Color):
 	var label = Label.new(); label.text = text; label.modulate = color; label.global_position = global_position + Vector2(-20, -50)
 	get_tree().current_scene.add_child(label)
 	var tw = create_tween().set_parallel(true)
@@ -719,38 +739,43 @@ func rpc_pull(target_pos, force):
 
 @rpc("any_peer", "call_local", "reliable")
 func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
+	if not multiplayer.is_server(): return 
 	if is_dead or roll_timer > 0 or is_anchored: return 
 	if status_stasis_timer > 0 and attacker_id == stasis_caster: return 
 	if current_body == BodyType.INVINCIBLE and time_since_spawn < 5.0: return
-	if current_body == BodyType.BOMBER and is_explosion and attacker_id != name.to_int(): amount *= 0.5
+
+	var dodged = false
+	var blinked = false
+	var tp_pos = Vector2.ZERO
+	var final_amount = amount
+
+	if current_body == BodyType.BOMBER and is_explosion and attacker_id != name.to_int(): final_amount *= 0.5
 	if current_body == BodyType.BOMBER and attacker_id == name.to_int(): return
-	if current_body == BodyType.GAMBLER and randf() < 0.25:
-		amount *= 0.5; var tw = create_tween(); sprite.modulate = Color.BLUE; tw.tween_property(sprite, "modulate", original_color, 0.3)
-		rpc_spawn_floating_text.rpc("Dodged!", Color.BLUE)
-	if current_body == BodyType.LAST_STAND and hp <= max_hp * 0.25: amount *= 0.5
+	if current_body == BodyType.GAMBLER and randf() < 0.25: final_amount *= 0.5; dodged = true
+	if current_body == BodyType.LAST_STAND and hp <= max_hp * 0.25: final_amount *= 0.5
 	
 	if temp_hp > 0:
-		temp_hp -= amount
-		if temp_hp < 0: amount = abs(temp_hp); temp_hp = 0
-		else: return 
+		temp_hp -= final_amount
+		if temp_hp < 0: final_amount = abs(temp_hp); temp_hp = 0
+		else: 
+			rpc_sync_damage_result.rpc(hp, temp_hp, 0, attacker_id, false, false, Vector2.ZERO)
+			return 
 	
 	if current_body == BodyType.TURTLE and attacker_id != -1:
 		var attacker = get_parent().get_node_or_null(str(attacker_id))
 		if attacker:
 			var dir_to_attacker = sign(attacker.global_position.x - global_position.x)
-			var facing_dir = sign(get_global_mouse_position().x - global_position.x)
-			if dir_to_attacker != facing_dir: amount *= 0.5 
+			var facing_dir = sign(sync_mouse_pos.x - global_position.x)
+			if dir_to_attacker != facing_dir: final_amount *= 0.5 
 			
 	if current_body == BodyType.UNSTABLE and randf() < 0.15:
 		var space = get_world_2d().direct_space_state
-		var tp_pos = global_position + Vector2(randf_range(-200, 200), randf_range(-200, -50))
+		tp_pos = global_position + Vector2(randf_range(-200, 200), randf_range(-200, -50))
 		var query = PhysicsRayQueryParameters2D.create(global_position, tp_pos); var res = space.intersect_ray(query)
 		if res: tp_pos = res.position - (tp_pos - global_position).normalized() * 30
-		global_position = tp_pos
-		rpc_spawn_floating_text.rpc("Blink!", Color.PURPLE)
-		amount = 0
+		final_amount = 0; blinked = true
 	
-	hp -= amount; invis_timer = 0.0
+	hp -= final_amount
 	
 	if current_body == BodyType.REACTIVE_ARMOR and hp < max_hp * 0.5 and not reactive_triggered:
 		reactive_triggered = true
@@ -760,26 +785,49 @@ func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
 				
 	if current_body == BodyType.THORNS and attacker_id != -1 and attacker_id != name.to_int():
 		var attacker = get_parent().get_node_or_null(str(attacker_id))
-		if attacker: attacker.rpc_take_damage.rpc(amount * 0.2, name.to_int())
+		if attacker: attacker.rpc_take_damage.rpc(final_amount * 0.2, name.to_int())
 		
 	if current_body == BodyType.COLD_BLOOD and attacker_id != -1:
 		var attacker = get_parent().get_node_or_null(str(attacker_id))
 		if attacker: attacker.rpc_apply_status.rpc("slow")
+
+	if hp <= 0 and attacker_id != -1:
+		var attacker = get_parent().get_node_or_null(str(attacker_id))
+		if attacker and attacker.current_body == BodyType.VAMPIRE_BODY: attacker.rpc_apply_heal.rpc(30)
 		
-	var tween = create_tween()
-	sprite.modulate = Color.RED
-	tween.tween_property(sprite, "modulate", original_color, 0.2) 
-	
-	if hp <= 0:
-		if attacker_id != -1:
-			var attacker = get_parent().get_node_or_null(str(attacker_id))
-			if attacker and attacker.current_body == BodyType.VAMPIRE_BODY: attacker.rpc_apply_heal.rpc(30)
+	rpc_sync_damage_result.rpc(hp, temp_hp, final_amount, attacker_id, dodged, blinked, tp_pos)
+
+@rpc("any_peer", "call_local", "reliable")
+func rpc_sync_damage_result(server_hp, server_temp_hp, amount_taken, _attacker_id, dodged, blinked, tp_pos):
+	hp = server_hp
+	temp_hp = server_temp_hp
+	invis_timer = 0.0
+
+	if dodged:
+		var tw = create_tween(); sprite.modulate = Color.BLUE; tw.tween_property(sprite, "modulate", original_color, 0.3)
+		spawn_floating_text_local("Dodged!", Color.BLUE)
+	elif blinked:
+		global_position = tp_pos
+		spawn_floating_text_local("Blink!", Color.PURPLE)
+
+	if amount_taken > 0:
+		var tween = create_tween()
+		sprite.modulate = Color.RED
+		tween.tween_property(sprite, "modulate", original_color, 0.2) 
+
+	if hp <= 0 and not is_dead:
 		die()
 
 func die():
 	is_dead = true; hide(); hp_bar.hide(); ammo_ui.hide(); collision_shape.set_deferred("disabled", true) 
 	if is_instance_valid(active_grapple): active_grapple.rpc("destroy_bullet")
-	get_tree().create_timer(3.0).timeout.connect(respawn)
+	
+	if GameManager.current_game_mode == "creative":
+		get_tree().create_timer(3.0).timeout.connect(respawn)
+	else:
+		if multiplayer.is_server():
+			var arenas = get_tree().get_nodes_in_group("arena_manager")
+			if arenas.size() > 0: arenas[0].check_round_end()
 
 func respawn():
 	global_position = spawn_position; hp = max_hp; ammo = max_ammo; is_dead = false
