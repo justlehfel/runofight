@@ -295,7 +295,7 @@ func _physics_process(delta):
 				
 			if nail_knockback_velocity.length() > 0: velocity = nail_knockback_velocity
 			elif direction: velocity.x = move_toward(velocity.x, direction * speed_modifier, friction)
-			elif not is_on_floor(): velocity.x = move_toward(velocity.x, 0, 30)
+			elif not is_on_floor(): velocity.x = move_toward(velocity.x, 0, 10)
 			else: velocity.x = move_toward(velocity.x, 0, friction)
 		else:
 			velocity.x = move_toward(velocity.x, 0, current_speed * 0.1) 
