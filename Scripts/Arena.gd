@@ -1,5 +1,7 @@
 extends Node2D
 
+# --- RÉFÉRENCES ET VARIABLES ---
+# Liaisons avec l'interface et suivi de l'état de la partie
 @onready var players_node = $Players
 @onready var score_ui = $ScoreUI 
 @onready var cinematic_layer = $CinematicLayer
@@ -9,6 +11,8 @@ extends Node2D
 var player_scores = {}
 var round_number = 1
 
+# --- INITIALISATION DE L'ARÈNE ---
+# Préparation de la scène, des compteurs de score et lancement du mode de jeu
 func _ready():
 	add_to_group("arena_manager")
 	cinematic_layer.hide()
@@ -23,6 +27,8 @@ func _ready():
 	else:
 		GameManager.match_active = true 
 
+# --- GESTION DES JOUEURS ---
+# Nettoyage de l'arène et placement des joueurs (et du dummy si en solo)
 func spawn_players():
 	for child in players_node.get_children():
 		child.name += "_deleted"
@@ -40,6 +46,8 @@ func spawn_players():
 		dummy.global_position = Vector2(1500, 50)
 		players_node.add_child(dummy, true)
 
+# --- CINÉMATIQUES ET TRANSITIONS ---
+# Affichage réseau des messages temporaires à l'écran avec animations de fondu
 @rpc("authority", "call_local", "reliable")
 func rpc_play_cinematic(text, duration):
 	cinematic_label.text = text
@@ -57,6 +65,8 @@ func rpc_play_cinematic(text, duration):
 		tw2.chain().tween_callback(cinematic_layer.hide)
 	)
 
+# --- CONTRÔLE DU MATCH ---
+# Lancement officiel d'un round par le serveur et activation des contrôles
 func start_round_cinematic():
 	if not multiplayer.is_server(): return
 	GameManager.match_active = false
@@ -70,6 +80,8 @@ func start_round_cinematic():
 func rpc_set_match_active(active):
 	GameManager.match_active = active
 
+# --- CONDITIONS DE VICTOIRE ET FIN DE ROUND ---
+# Vérifie les joueurs en vie, attribue les points et gère les égalités ou la victoire finale
 func check_round_end():
 	if not multiplayer.is_server() or not GameManager.match_active: return
 
@@ -105,6 +117,8 @@ func check_round_end():
 				start_round_cinematic()
 			)
 
+# --- SYNCHRONISATION RÉSEAU ---
+# Met à jour les scores et force la réapparition des joueurs sur tous les clients
 @rpc("authority", "call_local", "reliable")
 func rpc_update_scores(new_scores):
 	player_scores = new_scores
@@ -114,6 +128,8 @@ func rpc_update_scores(new_scores):
 func rpc_reset_arena():
 	for p in players_node.get_children(): p.respawn()
 
+# --- INTERFACE UTILISATEUR ---
+# Nettoie et recrée l'affichage des scores en haut de l'écran
 func update_score_ui():
 	if score_ui:
 		for child in score_ui.get_children(): child.queue_free()

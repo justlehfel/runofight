@@ -1,5 +1,7 @@
 extends Control
 
+# --- CONSTANTES ET RÉFÉRENCES UI ---
+# Chargement du script principal du joueur et liaisons avec les menus déroulants
 const PlayerScript = preload("res://Scripts/player.gd")
 
 @onready var weapon_list = $WeaponList
@@ -8,6 +10,8 @@ const PlayerScript = preload("res://Scripts/player.gd")
 @onready var btn_confirm = $BtnConfirm
 @onready var wait_label = $WaitLabel
 
+# --- INITIALISATION ---
+# Remplissage automatique des listes déroulantes basées sur les énumérations du joueur
 func _ready():
 	for weapon_name in PlayerScript.GunType.keys(): weapon_list.add_item(weapon_name)
 	for body_name in PlayerScript.BodyType.keys(): body_list.add_item(body_name)
@@ -15,6 +19,8 @@ func _ready():
 		
 	btn_confirm.pressed.connect(_on_confirm_pressed)
 
+# --- GESTION DE L'INTERFACE EN TEMPS RÉEL ---
+# Active ou désactive les sélections selon le statut "Prêt" et le nombre de joueurs connectés
 func _process(_delta):
 	var connected = GameManager.players.size()
 	var is_solo = (GameManager.current_game_mode == "solo")
@@ -46,6 +52,8 @@ func _process(_delta):
 			wait_label.text = "Starting..." if all_others_ready else "Waiting for other players..."
 			wait_label.show()
 
+# --- VALIDATION DES CHOIX ---
+# Verrouille l'interface et enregistre la sélection localement (en solo) ou l'envoie au serveur
 func _on_confirm_pressed():
 	btn_confirm.disabled = true
 	weapon_list.disabled = true
@@ -62,6 +70,8 @@ func _on_confirm_pressed():
 		var my_id = multiplayer.get_unique_id()
 		rpc_set_ready.rpc_id(1, my_id, weapon_list.selected, body_list.selected, ability_list.selected)
 
+# --- SYNCHRONISATION RÉSEAU ---
+# Mise à jour des équipements d'un joueur côté serveur et synchronisation avec les autres clients
 @rpc("any_peer", "call_local", "reliable")
 func rpc_set_ready(peer_id, weapon_id, body_id, ability_id):
 	if multiplayer.is_server():
@@ -72,6 +82,8 @@ func rpc_set_ready(peer_id, weapon_id, body_id, ability_id):
 		GameManager.sync_to_clients()
 		check_all_ready()
 
+# --- LANCEMENT DE LA PARTIE ---
+# Vérifie si tous les participants ont validé leurs choix avant de lancer l'arène
 func check_all_ready():
 	var is_solo = (GameManager.current_game_mode == "solo")
 	

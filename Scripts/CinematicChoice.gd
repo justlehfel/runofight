@@ -1,9 +1,13 @@
 extends Control
 
+# --- DONNÉES DES RUNES ---
+# Listes des noms de toutes les options disponibles pour chaque catégorie
 const WEAPON_NAMES = ["Buckshot", "Sniper", "Auto Rifle", "SMG", "Burst Pistol", "Revolver", "Lightning Gun", "Grappling Hook", "Flamethrower", "Charge Gun", "Sorcerer Wand", "Grenade Launcher", "Bow", "Plasma Cannon", "Sawed-Off", "Nailgun", "TDE Beam", "Tractor Beam", "Disc Launcher", "Rocket Launcher", "Boomerang", "Energy Whip", "Minigun", "Harpoon", "Slush Launcher"]
 const BODY_NAMES = ["Default", "Passive Regen", "Giant", "Thorns", "Triple Jump", "Feather Weight", "Heavy Weight", "Aerodynamic", "Frozen Feet", "Cold Blood", "Reactive Armor", "Microbe", "Invincible", "Vampire Body", "Fire Aura", "Poison Touch", "Lifesteal Aura", "Bomber", "Last Stand", "Feather Falling", "Scum", "Stealth", "Gambler", "Channeler", "Arachnid", "Turtle", "Unstable"]
 const ABILITY_NAMES = ["Dash", "Shield", "Reflect", "Shrink", "Heal", "Wall Destruct", "Teleport", "Smash", "Swap", "Smoke", "Ice Wall", "Mines", "Shockwave", "Roll", "Jetpack", "Rawwr", "Invisibility", "Fishing Rod", "Protect Dome", "Solid Dome", "Stasis", "Anchor", "Blink", "Overcharge", "Decoy"]
 
+# --- VARIABLES D'ÉTAT ET UI ---
+# Suivi de la progression, stockage des choix du joueur et références visuelles
 var current_step = 0 
 var selected_runes = {"weapon": 0, "body": 0, "ability": 0}
 var cards = []
@@ -12,6 +16,8 @@ var is_transitioning = false
 @onready var title_label = Label.new()
 @onready var status_label = Label.new()
 
+# --- INITIALISATION ET ANIMATION GLOBALE ---
+# Mise en place du fond, des textes d'en-tête et animation flottante du titre
 func _ready():
 	var bg = ColorRect.new()
 	bg.color = Color(0.05, 0.05, 0.08, 1.0)
@@ -39,6 +45,8 @@ func _process(_delta):
 		title_label.pivot_offset = Vector2(get_viewport_rect().size.x / 2.0, 32)
 		title_label.scale = Vector2.ONE * (1.0 + sin(Time.get_ticks_msec() * 0.003) * 0.02)
 
+# --- LOGIQUE DE GÉNÉRATION DES CHOIX ---
+# Détermine la catégorie actuelle et tire 3 options aléatoires uniques
 func start_step():
 	is_transitioning = false
 	var choices = []
@@ -66,6 +74,8 @@ func start_step():
 
 	create_cards(choices)
 
+# --- CRÉATION VISUELLE DES CARTES ---
+# Instancie les 3 cartes à l'écran, applique les styles, tweens et connecte les signaux d'interaction
 func create_cards(choices):
 	var screen_center = get_viewport_rect().size / 2.0
 	var spacing = 400
@@ -115,6 +125,8 @@ func create_cards(choices):
 		tw.tween_property(card, "position:y", target_y, 0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(i * 0.15)
 		tw.tween_property(card, "modulate:a", 1.0, 0.5).set_delay(i * 0.15)
 
+# --- INTERACTIONS UTILISATEUR ---
+# Gestion du survol (agrandissement/soulignage) et du clic (animations de validation et rejet)
 func _on_card_hover(card, is_hovering):
 	if is_transitioning: return
 	var tw = create_tween().set_parallel(true)
@@ -148,6 +160,8 @@ func _on_card_gui_input(event, _card, rune_id, index):
 
 		tw.chain().tween_callback(next_step)
 
+# --- GESTION DE LA PROGRESSION ---
+# Enregistre le choix de la rune et passe à l'étape suivante ou clôture la sélection
 func select_rune(rune_id):
 	if current_step == 0: selected_runes["weapon"] = rune_id
 	elif current_step == 1: selected_runes["body"] = rune_id
@@ -161,6 +175,8 @@ func next_step():
 	if current_step > 2: finish_selection()
 	else: start_step()
 
+# --- FIN DE SÉLECTION ET RÉSEAU ---
+# Affiche l'écran d'attente, synchronise le build avec le GameManager local et notifie le serveur
 func finish_selection():
 	title_label.text = "En attente des autres joueurs..."
 	status_label.show()
@@ -175,6 +191,7 @@ func finish_selection():
 
 	rpc_player_ready.rpc_id(1, my_id, selected_runes)
 
+# Validation côté serveur de l'état prêt des joueurs et lancement de la partie
 @rpc("any_peer", "call_local", "reliable")
 func rpc_player_ready(peer_id, runes):
 	if multiplayer.is_server():

@@ -1,5 +1,7 @@
 extends Control
 
+# --- VARIABLES DE L'INTERFACE ET D'ÉTAT ---
+# Références aux éléments graphiques et suivi du temps pour les animations
 var player_list_vbox: VBoxContainer
 var chat_display: RichTextLabel
 var chat_input: LineEdit
@@ -10,6 +12,8 @@ var count_label: Label
 
 var time_passed = 0.0
 
+# --- INITIALISATION ET BOUCLE VISUELLE ---
+# Connexion des signaux, création de l'interface et dessin de l'arrière-plan animé
 func _ready():
 	GameManager.players_updated.connect(_refresh_ui)
 	_build_procedural_ui()
@@ -28,6 +32,9 @@ func _draw():
 		var y = 1080.0 / 2.0 + sin(time_passed * 2.0 + i) * 300.0
 		draw_circle(Vector2(x, y), 5.0 + (i%5)*2, Color(1, 1, 1, 0.05))
 
+# --- CONSTRUCTION DE L'INTERFACE UTILISATEUR ---
+# Génération procédurale de tous les éléments du lobby (titre, listes, chat, boutons)
+# Bien que Duval ne sera pas enivré par cela, c'est nécessaire car plus configurable qu'avec l'éditeur 2D
 func _build_procedural_ui():
 	var margin = MarginContainer.new()
 	margin.set_anchors_preset(PRESET_FULL_RECT)
@@ -120,6 +127,8 @@ func _build_procedural_ui():
 		name_input.text = GameManager.players[my_id]["name"]
 		color_picker.color = Color(GameManager.players[my_id]["color"])
 
+# --- MISE À JOUR VISUELLE DES JOUEURS ---
+# Actualise la liste des joueurs connectés, leurs couleurs et leur statut (Prêt ou En attente)
 func _refresh_ui():
 	count_label.text = "Players: " + str(GameManager.players.size()) + "/4"
 	
@@ -160,6 +169,8 @@ func _refresh_ui():
 		
 		player_list_vbox.add_child(panel)
 
+# --- PERSONNALISATION ET SYNCHRONISATION DU PROFIL ---
+# Gère les changements de nom, de couleur, et le clic sur le bouton Prêt
 func _on_profile_changed(_new_text): _sync_local_profile()
 func _on_color_changed(_new_color): _sync_local_profile()
 
@@ -192,6 +203,8 @@ func _on_ready_pressed():
 	
 	_sync_local_profile()
 
+# --- CONDITIONS DE LANCEMENT ET RÉSEAU ---
+# Valide la présence des joueurs, vérifie si tous sont prêts et gère la transition vers le jeu
 @rpc("any_peer", "call_local", "reliable")
 func rpc_update_profile(peer_id, p_name, p_color_hex, is_ready):
 	if multiplayer.multiplayer_peer != null and multiplayer.is_server():
@@ -220,6 +233,8 @@ func rpc_launch_cinematic():
 	else:
 		get_tree().change_scene_to_file("res://Scenes/RuneTree.tscn")
 
+# --- SYSTÈME DE CHAT TEXTUEL ---
+# Envoi, réception et formatage des messages dans la zone de chat du lobby
 func _on_chat_submitted(new_text):
 	if new_text.strip_edges() == "": return
 	chat_input.text = ""

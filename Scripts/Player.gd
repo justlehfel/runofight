@@ -1,11 +1,15 @@
 extends CharacterBody2D
 
+# --- ÉNUMÉRATIONS ---
+# Types d'armes, corps, capacités, traits des projectiles et effets visuels
 enum GunType { BUCKSHOT, SNIPER, AUTO_RIFLE, SMG, BURST_PISTOL, REVOLVER, LIGHTNING_GUN, GRAPPLING_HOOK, FLAMETHROWER, CHARGE_GUN, SORCERER_WAND, GRENADE_LAUNCHER, BOW, PLASMA_CANNON, SAWED_OFF, NAILGUN, TDE_BEAM, TRACTOR_BEAM, DISC_LAUNCHER, ROCKET_LAUNCHER, BOOMERANG, ENERGY_WHIP, MINIGUN, HARPOON, SLUSH_LAUNCHER }
 enum BodyType { DEFAULT, PASSIVE_REGEN, GIANT, THORNS, TRIPLE_JUMP, FEATHER_WEIGHT, HEAVY_WEIGHT, AERODYNAMIC, FROZEN_FEET, COLD_BLOOD, REACTIVE_ARMOR, MICROBE, INVINCIBLE, VAMPIRE_BODY, FIRE_AURA, POISON_TOUCH, LIFESTEAL_AURA, BOMBER, LAST_STAND, FEATHER_FALLING, SCUM, STEALTH, GAMBLER, CHANNELER, ARACHNID, TURTLE, UNSTABLE }
 enum AbilityType { DASH, SHIELD, REFLECT, SHRINK, HEAL, WALL_DESTRUCT, TELEPORT, SMASH, SWAP, SMOKE, ICE_WALL, MINES, SHOCKWAVE, ROLL, JETPACK, RAWWR, INVISIBILITY, FISHING_ROD, PROTECT_DOME, SOLID_DOME, STASIS, ANCHOR, BLINK, OVERCHARGE, DECOY }
 enum Trait { NORMAL, BOOMERANG, HOMING, PIERCE, BEAM, CHAIN_BULLET, GRAPPLE, REMOTE, HARPOON, FLAME, SWAP, STASIS, FISHING }
 enum Effect { NONE, EXPLOSION, SLOW, NAIL_STUN, PULL_ENEMY, PULL_SELF }
 
+# --- DICTIONNAIRES DE STATISTIQUES ---
+# Statistiques détaillées de chaque arme (munitions, cadence, dégâts, etc.)
 const WEAPON_STATS = {
 	GunType.BUCKSHOT: { "ammo": 2, "fr": 0.8, "dmg": 7.5, "spd": 1800, "spr": 0.25, "pel": 6, "scl": 0.5, "auto": false, "rl": 2.2, "trait": Trait.NORMAL, "eff": Effect.NONE, "bnce": 0, "life": 0.4, "kb": 500, "burst": 1, "mass": 2.0, "grav": 0.0, "rl_type": 1 },
 	GunType.SNIPER: { "ammo": 1, "fr": 1.5, "dmg": 42.5, "spd": 2000, "spr": 0.0, "pel": 1, "scl": 1.5, "auto": false, "rl": 2.0, "trait": Trait.NORMAL, "eff": Effect.NONE, "bnce": 0, "life": 10.0, "kb": 400, "burst": 1, "mass": 10.0, "grav": 1.0, "rl_type": 0 },
@@ -34,6 +38,7 @@ const WEAPON_STATS = {
 	GunType.SLUSH_LAUNCHER: { "ammo": 10, "fr": 0.4, "dmg": 9.0, "spd": 900, "spr": 0.1, "pel": 1, "scl": 0.8, "auto": false, "rl": 2.0, "trait": Trait.NORMAL, "eff": Effect.SLOW, "bnce": 0, "life": 10.0, "kb": 0, "burst": 1, "mass": 3.0, "grav": 1.0, "rl_type": 0 }
 }
 
+# Statistiques détaillées de chaque type de corps (PV, vitesse, sauts, etc.)
 const BODY_STATS = {
 	BodyType.DEFAULT: { "hp": 100, "spd": 1.0, "jmp": 1.0, "grv": 1.0, "scl": 1.0, "air_jumps": 0 },
 	BodyType.PASSIVE_REGEN: { "hp": 100, "spd": 1.0, "jmp": 1.0, "grv": 1.0, "scl": 1.0, "air_jumps": 0 },
@@ -64,6 +69,7 @@ const BODY_STATS = {
 	BodyType.UNSTABLE: { "hp": 100, "spd": 1.0, "jmp": 1.0, "grv": 1.0, "scl": 1.0, "air_jumps": 0 }
 }
 
+# Temps de recharge assignés à chaque capacité spéciale
 const ABILITY_CD = {
 	AbilityType.DASH: 3.4, AbilityType.SHIELD: 12.0, AbilityType.REFLECT: 15.0, AbilityType.SHRINK: 12.0, AbilityType.HEAL: 15.0,
 	AbilityType.WALL_DESTRUCT: 8.0, AbilityType.TELEPORT: 8.0, AbilityType.SMASH: 10.0, AbilityType.SWAP: 12.0, AbilityType.SMOKE: 10.0,
@@ -72,28 +78,34 @@ const ABILITY_CD = {
 	AbilityType.STASIS: 12.0, AbilityType.ANCHOR: 10.0, AbilityType.BLINK: 6.0, AbilityType.OVERCHARGE: 5.0, AbilityType.DECOY: 10.0
 }
 
+# --- VARIABLES D'ÉTAT DU JOUEUR ---
+# Choix d'équipements actuels
 @export var current_weapon: GunType = GunType.BUCKSHOT
 @export var current_body: BodyType = BodyType.DEFAULT
 @export var current_ability: AbilityType = AbilityType.DASH
 
+# Physique de base
 const BASE_SPEED = 400.0
 const JUMP_VELOCITY = -600.0
 var base_gravity = ProjectSettings.get_setting("physics/2d/default_gravity") * 1.5
 
+# Variables de santé, de taille et d'esthétique
 var max_hp = 100.0
 var hp = 100.0
-var temp_hp = 0.0 
-var original_color: Color 
-var base_sprite_scale: Vector2 
+var temp_hp = 0.0
+var original_color: Color
+var base_sprite_scale: Vector2
 var original_scale: Vector2
 var air_jumps_left = 0
 
+# Variables de tir et de cycle de vie
 var ammo = 0
 var max_ammo = 0
 var can_shoot: bool = true
 var spawn_position: Vector2
 var is_dead: bool = false
 
+# Gestion des statuts et altérations temporelles
 var current_speed = BASE_SPEED
 var status_slow_timer = 0.0
 var status_pin_timer = 0.0
@@ -105,10 +117,12 @@ var poison_tick = 0.0
 var stasis_caster = -1
 var nail_knockback_velocity = Vector2.ZERO
 
+# Timers de rechargement et de capacités
 var reload_timer: Timer
 var reload_delay_timer: Timer
 var ability_timer = 0.0
 
+# Variables mécaniques d'armes spécifiques (charge, chaleur, grappin)
 var charge_level: float = 0.0
 var is_charging: bool = false
 var minigun_heat: float = 0.0
@@ -116,12 +130,14 @@ var tde_heat: float = 0.0
 var active_grapple = null
 var sync_mouse_pos: Vector2 = Vector2.ZERO
 
+# Compteurs de temps passifs
 var time_since_spawn = 0.0
 var regen_timer = 0.0
 var channeler_timer = 0.0
 var reactive_triggered = false
 var was_on_floor = false
 
+# Indicateurs d'état de compétences actives
 var is_reflecting = false
 var reflect_timer = 0.0
 var is_anchored = false
@@ -132,10 +148,11 @@ var roll_timer = 0.0
 var jetpack_fuel = 4.0
 var smash_active = false
 var invis_timer = 0.0
-
 var time_passed = 0.0
 var network_is_on_floor = false
 
+# --- RÉFÉRENCES DES NŒUDS ---
+# Attaches aux scènes et éléments de l'interface graphique
 @export var is_dummy: bool = false
 @onready var sprite = $Sprite2D
 @onready var weapon_pivot = $WeaponPivot
@@ -143,14 +160,17 @@ var network_is_on_floor = false
 @onready var muzzle = $WeaponPivot/Muzzle
 @onready var hp_bar = $Life
 @onready var collision_shape = $CollisionShape2D
-@onready var original_gun_pos = gun_sprite.position 
+@onready var original_gun_pos = gun_sprite.position
 @onready var ammo_ui = $AmmoUI
 @onready var reload_circle = $ReloadCircle
 
 var bullet_scene = preload("res://Scenes/Bullet.tscn")
 
+# Configuration de l'autorité réseau au chargement
 func _enter_tree(): set_multiplayer_authority(name.to_int())
 
+# --- INITIALISATION ET PRÉPARATION ---
+# Placement, chargement des stats multijoueur, nommage et UI au démarrage
 func _ready():
 	add_to_group("players")
 	original_color = sprite.modulate
@@ -174,8 +194,8 @@ func _ready():
 		collision_shape.set_deferred("disabled", true)
 		get_tree().create_timer(0.2).timeout.connect(func(): if not is_dead: collision_shape.set_deferred("disabled", false))
 	
-	spawn_position = global_position 
-	equip_runes() 
+	spawn_position = global_position
+	equip_runes()
 	
 	reload_timer = Timer.new(); reload_timer.one_shot = true; reload_timer.timeout.connect(_on_reload_finished); add_child(reload_timer)
 	reload_delay_timer = Timer.new(); reload_delay_timer.wait_time = 1.0; reload_delay_timer.one_shot = true; reload_delay_timer.timeout.connect(_on_reload_delay_finished); add_child(reload_delay_timer)
@@ -187,7 +207,7 @@ func _ready():
 		var p_data = GameManager.players[my_peer_id]
 		var name_tag = Label.new()
 		name_tag.text = p_data["name"]
-		name_tag.modulate = Color(p_data["color"]) 
+		name_tag.modulate = Color(p_data["color"])
 		name_tag.set_anchors_preset(Control.PRESET_CENTER_TOP)
 		name_tag.position = Vector2(-100, -90)
 		name_tag.custom_minimum_size = Vector2(200, 30)
@@ -197,6 +217,7 @@ func _ready():
 		name_tag.add_theme_constant_override("outline_size", 4)
 		add_child(name_tag)
 
+# Application des stats en fonction de l'équipement (armes, corps, reset ammo)
 func equip_runes():
 	var g_stats = WEAPON_STATS[current_weapon]; var b_stats = BODY_STATS[current_body]
 	max_hp = b_stats.hp; hp = max_hp; hp_bar.max_value = max_hp; temp_hp = 0.0
@@ -214,11 +235,13 @@ func equip_runes():
 		var rect = ColorRect.new(); rect.custom_minimum_size = Vector2(8, 8); rect.color = Color.YELLOW; ammo_ui.add_child(rect)
 	ammo = max_ammo; update_ammo_ui()
 
+# --- BOUCLE PHYSIQUE PRINCIPALE ---
+# Actualisation continue des mouvements, actions, statuts et synchronisation réseau
 func _physics_process(delta):
-	if multiplayer.multiplayer_peer == null: return 
+	if multiplayer.multiplayer_peer == null: return
 	time_since_spawn += delta
 	time_passed += delta
-	if is_dead: return 
+	if is_dead: return
 	
 	queue_redraw()
 
@@ -230,6 +253,7 @@ func _physics_process(delta):
 	if not reload_timer.is_stopped(): reload_circle.show(); reload_circle.value = (1.0 - (reload_timer.time_left / reload_timer.wait_time)) * 100
 	else: reload_circle.hide()
 
+	# Comportement de pause/lobby (empêche de bouger mais applique la gravité)
 	if not GameManager.match_active:
 		if is_multiplayer_authority():
 			velocity.y += base_gravity * BODY_STATS[current_body].grv * delta
@@ -241,6 +265,7 @@ func _physics_process(delta):
 		process_procedural_animations(delta)
 		return
 
+	# Logique de contrôle exclusive au joueur local
 	if is_multiplayer_authority():
 		if current_ability == AbilityType.JETPACK:
 			if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_physical_key_pressed(KEY_E):
@@ -257,13 +282,13 @@ func _physics_process(delta):
 		if current_weapon == GunType.GRAPPLING_HOOK and is_instance_valid(active_grapple):
 			if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 				if active_grapple.is_stuck:
-					velocity = (active_grapple.global_position - global_position).normalized() * 2500 
+					velocity = (active_grapple.global_position - global_position).normalized() * 2500
 					is_grappling = true
-			else: 
+			else:
 				active_grapple.rpc("destroy_bullet"); active_grapple = null; rpc("force_reload", true)
 
 		var current_mouse = get_global_mouse_position()
-		if current_mouse.distance_to(sync_mouse_pos) > 5.0: 
+		if current_mouse.distance_to(sync_mouse_pos) > 5.0:
 			sync_mouse_pos = current_mouse
 			rpc_update_mouse.rpc(sync_mouse_pos)
 		
@@ -284,7 +309,7 @@ func _physics_process(delta):
 			if current_body == BodyType.FEATHER_FALLING and Input.is_action_pressed("ui_up") and velocity.y > 0:
 				current_grav = gravity * 0.1; velocity.y = minf(velocity.y, 100)
 			if Input.is_action_pressed("ui_down"):
-				current_grav *= 5.0 
+				current_grav *= 5.0
 				if wall_sliding and velocity.y > 0: velocity.y = maxf(velocity.y, 350)
 			if current_body == BodyType.ARACHNID and is_on_ceiling() and Input.is_action_pressed("ui_up"):
 				current_grav = 0; velocity.y = 0; air_jumps_left = 1
@@ -308,17 +333,17 @@ func _physics_process(delta):
 				var speed_modifier = current_speed * BODY_STATS[current_body].spd * arena_buff
 				if rawwr_timer > 0: speed_modifier *= 1.5
 				if shrink_timer > 0: speed_modifier *= 1.2
-				if current_weapon == GunType.MINIGUN and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): speed_modifier *= 0.75 
+				if current_weapon == GunType.MINIGUN and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): speed_modifier *= 0.75
 					
 				var friction = 200
-				if current_body == BodyType.FROZEN_FEET: friction = 10 
+				if current_body == BodyType.FROZEN_FEET: friction = 10
 					
 				if nail_knockback_velocity.length() > 0: velocity = nail_knockback_velocity
 				elif direction: velocity.x = move_toward(velocity.x, direction * speed_modifier, friction)
 				elif not is_on_floor(): velocity.x = move_toward(velocity.x, 0, 30)
 				else: velocity.x = move_toward(velocity.x, 0, friction)
 			else:
-				velocity.x = move_toward(velocity.x, 0, current_speed * 0.1) 
+				velocity.x = move_toward(velocity.x, 0, current_speed * 0.1)
 
 		move_and_slide()
 		
@@ -337,7 +362,7 @@ func _physics_process(delta):
 			nail_knockback_velocity = nail_knockback_velocity.lerp(Vector2.ZERO, 10.0 * delta)
 			if is_on_wall() and velocity.length() > 500:
 				status_pin_timer = 2.0; nail_knockback_velocity = Vector2.ZERO
-				rpc_apply_status.rpc("pin") 
+				rpc_apply_status.rpc("pin")
 
 		var stats = WEAPON_STATS[current_weapon]
 		var wants_to_shoot = Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) if stats.auto else Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
@@ -348,7 +373,7 @@ func _physics_process(delta):
 			elif is_charging:
 				is_charging = false; shoot(charge_level); charge_level = 0.0
 		else:
-			if current_weapon == GunType.MINIGUN and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): minigun_heat = 0.0 
+			if current_weapon == GunType.MINIGUN and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT): minigun_heat = 0.0
 			if wants_to_shoot and ammo > 0 and can_shoot and status_stasis_timer <= 0: shoot()
 
 		rpc_sync_physics.rpc(global_position, velocity, ammo, is_on_floor(), jetpack_fuel, ability_timer)
@@ -356,6 +381,8 @@ func _physics_process(delta):
 	weapon_pivot.look_at(sync_mouse_pos if not is_multiplayer_authority() else get_global_mouse_position())
 	process_procedural_animations(delta)
 
+# --- RÉSEAU ET SYNCHRONISATION ---
+# Interpolation et mise à jour de la physique et des UI par le réseau
 @rpc("unreliable", "call_remote")
 func rpc_sync_physics(pos, vel, sync_ammo, floor_flag, j_fuel, a_timer):
 	global_position = global_position.lerp(pos, 0.5) if global_position.distance_to(pos) < 200 else pos
@@ -368,9 +395,12 @@ func rpc_sync_physics(pos, vel, sync_ammo, floor_flag, j_fuel, a_timer):
 		ammo = sync_ammo
 		update_ammo_ui()
 
+# Vérification du sol adaptée selon l'autorité réseau
 func check_floor() -> bool:
 	return is_on_floor() if is_multiplayer_authority() else network_is_on_floor
 
+# --- ANIMATIONS ET VISUELS ---
+# Déformation procédurale (squash and stretch) selon la vélocité
 func process_procedural_animations(delta):
 	if is_dead: return
 	
@@ -390,8 +420,9 @@ func process_procedural_animations(delta):
 		sprite.scale.y = lerp(sprite.scale.y, base_scl.y * (1.0 + stretch), delta * 15.0)
 		sprite.scale.x = lerp(sprite.scale.x, base_scl.x * (1.0 - stretch), delta * 15.0)
 
+# Rendu visuel d'interface direct (temps de recharge, effets d'aveuglement et boucliers)
 func _draw():
-	if status_blind_timer > 0 and is_multiplayer_authority(): 
+	if status_blind_timer > 0 and is_multiplayer_authority():
 		draw_rect(Rect2(-2000, -2000, 4000, 4000), Color(0, 0, 0, 0.95))
 		
 	if temp_hp > 0:
@@ -428,12 +459,13 @@ func _draw():
 		for i in range(4):
 			var segment_len = (points[i+1] - points[i]).length()
 			if current_dist >= segment_len: drawn_points.append(points[i+1]); current_dist -= segment_len
-			else: drawn_points.append(points[i] + (points[i+1] - points[i]).normalized() * current_dist); break 
+			else: drawn_points.append(points[i] + (points[i+1] - points[i]).normalized() * current_dist); break
 		for i in range(drawn_points.size() - 1): draw_line(drawn_points[i], drawn_points[i+1], outline_color, thickness)
 
 	if current_body == BodyType.FIRE_AURA: draw_circle(Vector2.ZERO, 300, Color(1, 0.5, 0, 0.1))
 	if rawwr_timer > 0: draw_circle(Vector2.ZERO, 50, Color(1, 0, 0, 0.3))
 
+# Fonctions d'animation de saut, d'atterrissage et de recul de tir via Tweens
 @rpc("any_peer", "call_local", "reliable")
 func rpc_animate_jump():
 	var tw = create_tween()
@@ -449,15 +481,18 @@ func rpc_animate_landing():
 	tw.tween_property(sprite, "scale", scl, 0.3).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 
 func animate_recoil(charge_bonus: float = 0.0):
-	if current_body == BodyType.HEAVY_WEIGHT: return 
+	if current_body == BodyType.HEAVY_WEIGHT: return
 	var tw = create_tween()
-	gun_sprite.position.x = original_gun_pos.x - (15 + charge_bonus * 10.0) 
+	gun_sprite.position.x = original_gun_pos.x - (15 + charge_bonus * 10.0)
 	tw.tween_property(gun_sprite, "position:x", original_gun_pos.x, 0.2).set_trans(Tween.TRANS_SPRING)
 
+# --- GESTION DES CAPACITÉS (ABILITIES) ---
+# Déclenchement local pour vérifier les cooldowns et initier l'action réseau
 func trigger_ability():
 	if current_ability != AbilityType.JETPACK: ability_timer = ABILITY_CD[current_ability]
 	rpc_use_ability.rpc(current_ability, get_global_mouse_position())
 
+# Exécution réseau d'une capacité (Dash, Bouclier, Téléport, etc.)
 @rpc("any_peer", "call_local", "reliable")
 func rpc_use_ability(ability_id, target_pos):
 	if ability_id != AbilityType.JETPACK:
@@ -527,12 +562,15 @@ func rpc_use_ability(ability_id, target_pos):
 		AbilityType.OVERCHARGE: hp -= 20; ammo = max_ammo; update_ammo_ui()
 		AbilityType.DECOY: if multiplayer.is_server(): rpc_spawn_object.rpc("decoy", global_position)
 
+# --- FONCTIONS UTILITAIRES ET EFFETS GLOBAUX ---
+# Soin de santé du joueur avec appel réseau et affichage textuel
 @rpc("any_peer", "call_local", "reliable")
 func rpc_apply_heal(amount):
 	if current_body == BodyType.PASSIVE_REGEN: amount *= 0.9
 	hp = min(hp + amount, max_hp)
 	spawn_floating_text_local("+" + str(int(amount)), Color.GREEN)
 
+# Effet de frappe au sol qui blesse et attouche le colosse massif de Duval
 @rpc("any_peer", "call_local", "reliable")
 func rpc_ground_smash_fx():
 	if multiplayer.is_server():
@@ -541,6 +579,7 @@ func rpc_ground_smash_fx():
 				p.rpc_take_damage.rpc(p.max_hp * 0.25, name.to_int())
 				p.rpc_pull.rpc(global_position, -800)
 
+# Instanciation d'objets dans la scène globale (Murs de glace, Mines, Dômes, Fumigènes)
 @rpc("any_peer", "call_local", "reliable")
 func rpc_spawn_object(type, pos):
 	if type == "ice":
@@ -552,8 +591,8 @@ func rpc_spawn_object(type, pos):
 		var mine = Area2D.new(); mine.position = pos
 		var rect = ColorRect.new(); rect.color = Color.RED; rect.position = Vector2(-15, -5); rect.size = Vector2(30, 10); mine.add_child(rect)
 		var coll = CollisionShape2D.new(); var shape = RectangleShape2D.new(); shape.size = Vector2(30, 10); coll.shape = shape; mine.add_child(coll)
-		mine.body_entered.connect(func(body): 
-			if body.has_method("rpc_take_damage") and body != self: 
+		mine.body_entered.connect(func(body):
+			if body.has_method("rpc_take_damage") and body != self:
 				body.rpc_take_damage.rpc(body.max_hp * 0.5, name.to_int(), true); mine.queue_free()
 		)
 		get_tree().current_scene.add_child(mine)
@@ -589,13 +628,14 @@ func rpc_spawn_object(type, pos):
 	elif type == "dome_solid":
 		for i in range(8):
 			var angle = i * (PI / 4.0); var w_pos = pos + Vector2(cos(angle), sin(angle)) * 150
-			rpc_spawn_object("ice", w_pos) 
+			rpc_spawn_object("ice", w_pos)
 	elif type == "decoy":
 		var decoy = Sprite2D.new(); decoy.texture = sprite.texture; decoy.modulate = sprite.modulate; decoy.position = pos
 		get_tree().current_scene.add_child(decoy)
 		var tween = create_tween(); tween.tween_property(decoy, "position:x", pos.x + 800, 3.0)
 		get_tree().create_timer(4.0).timeout.connect(func(): if is_instance_valid(decoy): decoy.queue_free())
 
+# Création de texte flottant pour des informations visuelles sur le joueur local
 func spawn_floating_text_local(text: String, color: Color):
 	var label = Label.new(); label.text = text; label.modulate = color; label.global_position = global_position + Vector2(-20, -50)
 	get_tree().current_scene.add_child(label)
@@ -604,6 +644,8 @@ func spawn_floating_text_local(text: String, color: Color):
 	tw.tween_property(label, "modulate:a", 0.0, 1.0).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
 	tw.chain().tween_callback(label.queue_free)
 
+# --- MISE À JOUR DES TIMERS ET EFFETS ---
+# Diminution des temps restants pour les capacités actives (réflexion, rétrécissement, invisibilité, etc.)
 func process_abilities(delta):
 	if reflect_timer > 0:
 		reflect_timer -= delta; if reflect_timer <= 0: is_reflecting = false
@@ -620,6 +662,7 @@ func process_abilities(delta):
 		invis_timer -= delta; sprite.modulate.a = 0.0; gun_sprite.modulate.a = 0.0; hp_bar.modulate.a = 0.0; ammo_ui.modulate.a = 0.0
 		if invis_timer <= 0: sprite.modulate.a = 1.0; gun_sprite.modulate.a = 1.0; hp_bar.modulate.a = 1.0; ammo_ui.modulate.a = 1.0
 
+# Application des effets passifs liés au corps (auras, régénération, furtivité, etc.)
 func process_body_passives(delta):
 	if multiplayer.is_server() and (current_body == BodyType.FIRE_AURA or current_body == BodyType.LIFESTEAL_AURA):
 		for p in get_tree().get_nodes_in_group("players"):
@@ -647,16 +690,19 @@ func process_body_passives(delta):
 		for p in get_tree().get_nodes_in_group("players"):
 			if p != self and not p.is_dead and global_position.distance_to(p.global_position) < 150: p.rpc_apply_status.rpc("blind", Vector2.ZERO, 0.5)
 
+# --- SYSTÈME D'ARMES ET PROJECTILES ---
+# Suivi de la visée de la souris à travers le réseau
 @rpc("any_peer", "call_local", "unreliable")
 func rpc_update_mouse(pos): sync_mouse_pos = pos
 
+# Initialisation du tir local, gestion de la chaleur (Minigun, etc.) et de la cadence
 func shoot(charge: float = 0.0):
-	can_shoot = false; invis_timer = 0.0 
+	can_shoot = false; invis_timer = 0.0
 	var stats = WEAPON_STATS[current_weapon]
 	var fire_rate_mod = stats.fr
 	if current_weapon == GunType.MINIGUN:
 		minigun_heat = min(minigun_heat + 0.05, 1.0); fire_rate_mod = lerp(0.3, 0.02, minigun_heat)
-	if current_weapon == GunType.TDE_BEAM: tde_heat = min(tde_heat + 0.15, 8.0) 
+	if current_weapon == GunType.TDE_BEAM: tde_heat = min(tde_heat + 0.15, 8.0)
 	else: tde_heat = 0.0
 	
 	for b in range(stats.burst):
@@ -666,6 +712,7 @@ func shoot(charge: float = 0.0):
 			
 	get_tree().create_timer(fire_rate_mod).timeout.connect(func(): can_shoot = true)
 
+# Création du ou des projectiles sur le réseau et application des bonus
 @rpc("any_peer", "call_local", "reliable")
 func rpc_shoot_action(pos, rot, weapon_id, charge, tde_bonus):
 	var stats = WEAPON_STATS[weapon_id]
@@ -678,7 +725,7 @@ func rpc_shoot_action(pos, rot, weapon_id, charge, tde_bonus):
 	if stats.trait == Trait.BEAM:
 		var space = get_world_2d().direct_space_state
 		var query = PhysicsRayQueryParameters2D.create(pos, pos + Vector2.RIGHT.rotated(rot) * 2000)
-		query.collision_mask = 0xFFFFFFFF; query.exclude = [self.get_rid()] 
+		query.collision_mask = 0xFFFFFFFF; query.exclude = [self.get_rid()]
 		var result = space.intersect_ray(query)
 		if result: hit_dist = pos.distance_to(result.position)
 	
@@ -695,14 +742,14 @@ func rpc_shoot_action(pos, rot, weapon_id, charge, tde_bonus):
 		bullet.rotation = rot + randf_range(-spread, spread)
 		bullet.speed = stats.spd
 		bullet.damage = (stats.dmg + (charge / 5.0) * 84.0) * arena_buff
-		if weapon_id == GunType.TDE_BEAM: bullet.damage *= pow(1.5, tde_bonus) 
-		if rawwr_timer > 0: bullet.damage *= 1.5 
+		if weapon_id == GunType.TDE_BEAM: bullet.damage *= pow(1.5, tde_bonus)
+		if rawwr_timer > 0: bullet.damage *= 1.5
 		
 		bullet.scale = Vector2(1.0, 1.0)
 		bullet.b_trait = stats.trait; bullet.b_effect = stats.eff; bullet.bounces = stats.bnce; bullet.life_time = stats.life
 		bullet.mass = stats.mass; bullet.grav_scale = stats.grav; bullet.beam_length = hit_dist
 		
-		get_tree().current_scene.add_child(bullet) 
+		get_tree().current_scene.add_child(bullet)
 		if stats.trait == Trait.GRAPPLE and is_multiplayer_authority(): active_grapple = bullet
 	
 	if stats.rl_type != 2:
@@ -710,6 +757,8 @@ func rpc_shoot_action(pos, rot, weapon_id, charge, tde_bonus):
 		if ammo <= 0: reload_timer.start()
 		else: reload_delay_timer.start()
 
+# --- RECHARGEMENT ---
+# Gestion du rechargement de force ou du CD du grappin
 @rpc("any_peer", "call_local", "reliable")
 func force_reload(instant):
 	if instant: ammo = max_ammo; update_ammo_ui()
@@ -720,6 +769,8 @@ func trigger_grapple_cooldown():
 	active_grapple = null; reload_timer.wait_time = 1.5; reload_timer.start()
 
 func _on_reload_delay_finished(): reload_timer.start()
+
+# Remplissage des munitions et redémarrage de timer si recharge graduelle
 func _on_reload_finished():
 	var stats = WEAPON_STATS[current_weapon]; minigun_heat = 0.0
 	if stats.rl_type == 1:
@@ -727,9 +778,12 @@ func _on_reload_finished():
 		if ammo < max_ammo: reload_timer.start()
 	else: ammo = max_ammo; update_ammo_ui()
 
+# Mise à jour visuelle des cases de munitions
 func update_ammo_ui():
-	for i in range(ammo_ui.get_child_count()): ammo_ui.get_child(i).modulate.a = 1.0 if i < ammo else 0.2 
+	for i in range(ammo_ui.get_child_count()): ammo_ui.get_child(i).modulate.a = 1.0 if i < ammo else 0.2
 
+# --- ALTÉRATIONS D'ÉTAT (STATUS EFFECTS) ---
+# Analyse environnementale et minuteries de pénalité (Poison, fumigènes, vitesse, étourdissement)
 func handle_status_effects(delta):
 	var in_smoke = false
 	for s in get_tree().get_nodes_in_group("smokes"):
@@ -745,10 +799,11 @@ func handle_status_effects(delta):
 	
 	if status_blind_timer > 0: status_blind_timer -= delta; sprite.modulate = Color.BLACK
 	elif status_stasis_timer > 0: status_stasis_timer -= delta; sprite.modulate = Color.BLUE
-	elif status_pin_timer > 0: status_pin_timer -= delta; sprite.modulate = Color.WEB_GRAY 
-	elif status_slow_timer > 0: status_slow_timer -= delta; current_speed = BASE_SPEED * 0.75; sprite.modulate = Color.CYAN 
+	elif status_pin_timer > 0: status_pin_timer -= delta; sprite.modulate = Color.WEB_GRAY
+	elif status_slow_timer > 0: status_slow_timer -= delta; current_speed = BASE_SPEED * 0.75; sprite.modulate = Color.CYAN
 	else: current_speed = BASE_SPEED; sprite.modulate = original_color
 
+# Application réseau d'une pénalité (statut) sur le joueur
 @rpc("any_peer", "call_local", "reliable")
 func rpc_apply_status(type, dir = Vector2.ZERO, duration = 1.0, caster_id = -1):
 	if type == "slow": status_slow_timer = 2.0
@@ -759,17 +814,20 @@ func rpc_apply_status(type, dir = Vector2.ZERO, duration = 1.0, caster_id = -1):
 	elif type == "poison" and poison_timer <= 0: poison_timer = 3.0; poison_tick = 0.5
 	elif type == "tractor": status_tractor_timer = 0.5
 
+# Force de traction appliquée sur la position du joueur
 @rpc("any_peer", "call_local", "reliable")
 func rpc_pull(target_pos, force):
 	if not is_multiplayer_authority() or is_anchored: return
 	var dir = (target_pos - global_position).normalized()
-	velocity = dir * force 
+	velocity = dir * force
 
+# --- SYSTÈME DE DÉGÂTS ET DE VIE ---
+# Logique de prise de dégâts, mitigation, esquives, name it
 @rpc("any_peer", "call_local", "reliable")
 func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
-	if not multiplayer.is_server(): return 
-	if is_dead or roll_timer > 0 or is_anchored: return 
-	if status_stasis_timer > 0 and attacker_id == stasis_caster: return 
+	if not multiplayer.is_server(): return
+	if is_dead or roll_timer > 0 or is_anchored: return
+	if status_stasis_timer > 0 and attacker_id == stasis_caster: return
 	if current_body == BodyType.INVINCIBLE and time_since_spawn < 5.0: return
 
 	var dodged = false
@@ -785,16 +843,16 @@ func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
 	if temp_hp > 0:
 		temp_hp -= final_amount
 		if temp_hp < 0: final_amount = abs(temp_hp); temp_hp = 0
-		else: 
+		else:
 			rpc_sync_damage_result.rpc(hp, temp_hp, 0, attacker_id, false, false, Vector2.ZERO)
-			return 
+			return
 	
 	if current_body == BodyType.TURTLE and attacker_id != -1:
 		var attacker = get_parent().get_node_or_null(str(attacker_id))
 		if attacker:
 			var dir_to_attacker = sign(attacker.global_position.x - global_position.x)
 			var facing_dir = sign(sync_mouse_pos.x - global_position.x)
-			if dir_to_attacker != facing_dir: final_amount *= 0.5 
+			if dir_to_attacker != facing_dir: final_amount *= 0.5
 			
 	if current_body == BodyType.UNSTABLE and randf() < 0.15:
 		var space = get_world_2d().direct_space_state
@@ -808,7 +866,7 @@ func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
 	if current_body == BodyType.REACTIVE_ARMOR and hp < max_hp * 0.5 and not reactive_triggered:
 		reactive_triggered = true
 		for p in get_tree().get_nodes_in_group("players"):
-			if p != self and global_position.distance_to(p.global_position) < 200: p.rpc_pull.rpc(global_position, -2500) 
+			if p != self and global_position.distance_to(p.global_position) < 200: p.rpc_pull.rpc(global_position, -2500)
 	if current_body == BodyType.REACTIVE_ARMOR and hp >= max_hp * 0.5: reactive_triggered = false
 				
 	if current_body == BodyType.THORNS and attacker_id != -1 and attacker_id != name.to_int():
@@ -825,6 +883,7 @@ func rpc_take_damage(amount, attacker_id = -1, is_explosion = false):
 		
 	rpc_sync_damage_result.rpc(hp, temp_hp, final_amount, attacker_id, dodged, blinked, tp_pos)
 
+# Synchronisation du résultat des dégâts et de la vie au client
 @rpc("any_peer", "call_local", "reliable")
 func rpc_sync_damage_result(server_hp, server_temp_hp, amount_taken, _attacker_id, dodged, blinked, tp_pos):
 	hp = server_hp
@@ -841,13 +900,15 @@ func rpc_sync_damage_result(server_hp, server_temp_hp, amount_taken, _attacker_i
 	if amount_taken > 0:
 		var tween = create_tween()
 		sprite.modulate = Color.RED
-		tween.tween_property(sprite, "modulate", original_color, 0.2) 
+		tween.tween_property(sprite, "modulate", original_color, 0.2)
 
 	if hp <= 0 and not is_dead:
 		die()
 
+# --- CYCLE DE VIE (LIFECYCLE) ---
+# Fonction déclenchée à la mort du joueur, notification du serveur et UI cachée
 func die():
-	is_dead = true; hide(); hp_bar.hide(); ammo_ui.hide(); collision_shape.set_deferred("disabled", true) 
+	is_dead = true; hide(); hp_bar.hide(); ammo_ui.hide(); collision_shape.set_deferred("disabled", true)
 	if is_instance_valid(active_grapple): active_grapple.rpc("destroy_bullet")
 	
 	if GameManager.current_game_mode == "creative":
@@ -857,8 +918,9 @@ func die():
 			var arenas = get_tree().get_nodes_in_group("arena_manager")
 			if arenas.size() > 0: arenas[0].check_round_end()
 
+# Réinitialisation du personnage pour son retour en jeu
 func respawn():
 	global_position = spawn_position; hp = max_hp; ammo = max_ammo; is_dead = false
 	status_pin_timer = 0; status_slow_timer = 0; status_blind_timer = 0; poison_timer = 0.0; time_since_spawn = 0.0; reactive_triggered = false
-	nail_knockback_velocity = Vector2.ZERO; collision_shape.set_deferred("disabled", false) 
+	nail_knockback_velocity = Vector2.ZERO; collision_shape.set_deferred("disabled", false)
 	update_ammo_ui(); hp_bar.show(); ammo_ui.show(); show()

@@ -1,5 +1,7 @@
 extends Control
 
+# --- PARAMÈTRES ET RÉFÉRENCES UI ---
+# Définition du port réseau, état de la connexion et liaisons avec les éléments des menus
 const PORT = 8910
 
 var pending_connection = "" 
@@ -16,6 +18,8 @@ var pending_connection = ""
 @onready var btn_join = $NetworkMenu/BtnJoin
 @onready var btn_quit = $NetworkMenu/BtnQuit
 
+# --- INITIALISATION ---
+# Configuration de la visibilité des menus au lancement et assignation des événements de clics
 func _ready():
 	network_menu.show()
 	play_submenu.hide()
@@ -29,6 +33,8 @@ func _ready():
 	btn_multi_creative.pressed.connect(_on_multi_creative_pressed)
 	btn_back.pressed.connect(_on_back_pressed)
 
+# --- NAVIGATION DES MENUS ---
+# Bascule l'affichage entre l'écran réseau principal et le sous-menu de sélection de mode
 func _on_host_pressed():
 	pending_connection = "host"
 	network_menu.hide()
@@ -44,6 +50,8 @@ func _on_back_pressed():
 	play_submenu.hide()
 	network_menu.show()
 
+# --- SÉLECTION DU MODE DE JEU ---
+# Application du mode choisi (Solo, Compétitif ou Créatif) et transition vers la scène appropriée
 func _on_solo_pressed():
 	pending_connection = ""
 	GameManager.current_game_mode = "solo"
@@ -66,6 +74,8 @@ func _on_multi_creative_pressed():
 	if connect_to_network():
 		get_tree().change_scene_to_file("res://Scenes/RuneTree.tscn")
 
+# --- GESTION DU RÉSEAU (MULTIJOUEUR) ---
+# Logique de création du serveur (Host) ou de la connexion à un hôte distant (Client)
 func connect_to_network() -> bool:
 	if pending_connection == "host":
 		return start_server()

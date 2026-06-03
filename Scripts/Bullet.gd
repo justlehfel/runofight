@@ -1,8 +1,12 @@
 extends Area2D
 
+# --- ÉNUMÉRATIONS ---
+# Types de comportements uniques et effets à l'impact
 enum Trait { NORMAL, BOOMERANG, HOMING, PIERCE, BEAM, CHAIN_BULLET, GRAPPLE, REMOTE, HARPOON, FLAME, SWAP, STASIS, FISHING }
 enum Effect { NONE, EXPLOSION, SLOW, NAIL_STUN, PULL_ENEMY, PULL_SELF }
 
+# --- PROPRIÉTÉS ET STATISTIQUES ---
+# Attributs de base, attributs physiques et patterns du projectile
 var speed = 1000.0
 var damage = 25.0
 var shooter = null 
@@ -14,6 +18,8 @@ var life_time: float = 10.0
 var mass: float = 1.0
 var grav_scale: float = 1.0
 
+# --- VARIABLES D'ÉTAT ---
+# Suivi du mouvement, des dégâts spéciaux (gniaaaa) et de la trajectoire
 var velocity: Vector2
 var time_alive: float = 0.0
 var traveled_distance: float = 0.0
@@ -25,14 +31,19 @@ var beam_length: float = 0.0
 var is_stuck = false
 var is_returning = false
 
+# --- VARIABLES VISUELLES ---
+# Gestion de l'apparence, de la traînée et des déformations
 var base_scale: Vector2 = Vector2.ONE
 var trail_points = []
 var trail_max_length = 5
 var spin_angle = 0.0
 
+# --- RÉFÉRENCES DES NŒUDS ---
 @onready var raycast = $RayCast
 @onready var sprite = $Sprite2D
 
+# --- INITIALISATION ---
+# Configuration au moment du tir : exemptions de collision, ajustements pour les lasers et minuterie de vie
 func _ready():
 	add_to_group("bullets")
 	velocity = Vector2(speed, 0).rotated(rotation)
@@ -51,12 +62,15 @@ func _ready():
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
 
+# --- BOUCLE PHYSIQUE PRINCIPALE ---
+# Mise à jour des déplacements, de la gravité et des trajectoires spéciales
 func _physics_process(delta):
 	if is_stuck: return 
 	
 	time_alive += delta
 	if b_trait != Trait.BEAM and b_trait != Trait.FLAME: velocity.y += (bullet_gravity * grav_scale) * delta
 
+	# Comportements de guidage spécifiques
 	match b_trait:
 		Trait.BOOMERANG:
 			if time_alive > life_time and not is_returning: is_returning = true
@@ -74,6 +88,7 @@ func _physics_process(delta):
 	var step = velocity * delta
 	traveled_distance += step.length()
 	
+	# Gestion de la perte de dégâts selon la distance (Falloff)
 	var falloff_dist = 4000.0
 	if mass == 2.0 and bounces == 0: falloff_dist = 1500.0 
 	if mass == 3.0 and speed == 1100: falloff_dist = 800.0 
@@ -81,6 +96,7 @@ func _physics_process(delta):
 	
 	damage = max(1.0, base_damage * (1.0 - (traveled_distance / falloff_dist)))
 	
+	# Calcul des rebonds via Raycast avant de déplacer le projectile
 	raycast.target_position = Vector2(step.length() + 5.0, 0)
 	if bounces > 0 and raycast.is_colliding():
 		var normal = raycast.get_collision_normal()
@@ -97,10 +113,12 @@ func _physics_process(delta):
 	if b_trait != Trait.BEAM:
 		rotation = velocity.angle()
 		
+	# Enregistrement des points pour le dessin de la traînée
 	trail_points.insert(0, global_position)
 	if trail_points.size() > trail_max_length: trail_points.pop_back()
 	queue_redraw() 
 
+	# Déformations visuelles et effets de particules simulés
 	if b_trait != Trait.BEAM and b_trait != Trait.BOOMERANG and mass != 7.0:
 		var speed_factor = velocity.length() * 0.0003
 		var stretch_x = 1.0 + speed_factor
@@ -117,6 +135,8 @@ func _physics_process(delta):
 	elif b_trait == Trait.BEAM:
 		sprite.modulate.a = 0.5 + sin(time_alive * 30.0) * 0.5
 
+# --- RENDU VISUEL PERSONNALISÉ ---
+# Dessin de la traînée colorée et des auras selon le type de projectile
 func _draw():
 	if trail_points.size() > 1 and b_trait != Trait.BEAM and b_trait != Trait.FLAME:
 		var trail_color = Color(1.0, 1.0, 1.0, 0.3) 
@@ -140,6 +160,8 @@ func _draw():
 	elif b_trait == Trait.HOMING: 
 		draw_circle(Vector2.ZERO, 10, Color(1.0, 0.0, 1.0, 0.3))
 
+# --- FONCTIONS UTILITAIRES ---
+# Recherche du joueur le plus proche (pour les balles téléguidées ou rebondissantes)
 func get_closest_player(ignore_player):
 	var closest_dist = 800.0 
 	var closest_player = null
@@ -148,12 +170,15 @@ func get_closest_player(ignore_player):
 			closest_dist = global_position.distance_to(p.global_position); closest_player = p
 	return closest_player
 
+# --- GESTION DES COLLISIONS ---
+# Interaction entre deux projectiles : destruction basée sur la masse
 func _on_area_entered(area):
 	if area.is_in_group("bullets") and area.shooter != shooter:
 		if mass > area.mass: area.explode_or_die()
 		elif mass < area.mass: explode_or_die()
 		else: area.explode_or_die(); explode_or_die()
 
+# Impact sur les joueurs, le décor et exécution des effets (Dégâts, Grappin, Swap, etc.)
 func _on_body_entered(body):
 	if body == shooter: 
 		if b_trait == Trait.BOOMERANG and is_returning and multiplayer.is_server(): shooter.rpc("force_reload", true); queue_free()
@@ -206,15 +231,19 @@ func _on_body_entered(body):
 			return
 		if bounces <= 0 and b_trait != Trait.PIERCE and b_trait != Trait.BEAM: explode_or_die()
 
+# --- FONCTIONS RÉSEAU (RPC) ET FIN DE VIE ---
+# Immobilisation du grappin sur une surface
 @rpc("call_local", "reliable")
 func stick_grapple(pos): is_stuck = true; global_position = pos; velocity = Vector2.ZERO
 
+# Destruction synchronisée à travers le réseau
 @rpc("any_peer", "call_local", "reliable")
 func destroy_bullet():
 	if multiplayer.is_server():
 		if shooter and (b_trait == Trait.REMOTE): shooter.rpc("force_reload", true)
 		queue_free()
 
+# Fin du projectile : Gestion des explosions de zone et des dégâts collatéraux
 func explode_or_die():
 	if multiplayer.is_server():
 		if b_effect == Effect.EXPLOSION:
